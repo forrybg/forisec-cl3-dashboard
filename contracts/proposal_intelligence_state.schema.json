@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "proposal_intelligence_state",
+  "type": "object",
+  "required": [
+    "schema_version", "scoring_model_version", "agent_id", "repo_commit",
+    "run_timestamp", "mode", "overall_status", "diagnostic_score",
+    "canonical_score", "promotion_status", "section_scores",
+    "competitive_assessment", "weaknesses", "evidence_packs", "fix_packs",
+    "timeline_summary", "findings"
+  ],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "scoring_model_version": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "repo_commit": {"type": ["string", "null"]},
+    "run_timestamp": {"type": "string"},
+    "mode": {"type": "string", "enum": ["DIAGNOSTIC"]},
+    "overall_status": {"type": "string"},
+    "diagnostic_score": {
+      "type": "object",
+      "required": ["excellence", "impact", "implementation", "total", "max_total"],
+      "properties": {
+        "excellence": {"type": "number", "minimum": 0, "maximum": 5},
+        "impact": {"type": "number", "minimum": 0, "maximum": 5},
+        "implementation": {"type": "number", "minimum": 0, "maximum": 5},
+        "total": {"type": "number", "minimum": 0, "maximum": 15},
+        "max_total": {"type": "number"}
+      }
+    },
+    "canonical_score": {"type": ["number", "null"]},
+    "promotion_status": {"type": "string", "enum": ["BLOCKED", "PENDING_REVIEW", "APPROVED"]},
+    "section_scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion_id", "title", "score", "max_score", "confidence",
+                     "summary", "strengths", "weaknesses", "red_flags",
+                     "critical_fixes", "evidence", "missing_evidence", "evaluated_repo_commit"],
+        "properties": {
+          "score": {"type": "number", "minimum": 0, "maximum": 5},
+          "max_score": {"type": "number"},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "competitive_assessment": {
+      "type": "object",
+      "required": ["score", "label", "components"],
+      "properties": {
+        "score": {"type": "number", "minimum": 0, "maximum": 5},
+        "label": {"type": "string", "enum": ["NOT COMPETITIVE", "WEAK", "COMPETITIVE BUT WEAK", "STRONG", "TOP TIER"]},
+        "components": {
+          "type": "object",
+          "required": ["confidence_factor", "consortium_credibility", "risk_perception", "strategic_fit", "differentiation"]
+        }
+      }
+    },
+    "weaknesses": {"type": "array"},
+    "evidence_packs": {"type": "array"},
+    "fix_packs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {"type": "string", "enum": ["PENDING_REVIEW", "APPROVED", "REJECTED", "APPLIED", "STALE"]}
+        }
+      }
+    },
+    "timeline_summary": {"type": "object"},
+    "findings": {"type": "array"}
+  }
+}

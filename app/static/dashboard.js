@@ -52,6 +52,7 @@ function renderAgentCards(d) {
     ['Agent 2 · proposal_evaluator', d.evaluation],
     ['Agent 3 · repository_guardian', d.guardian],
     ['Agent 4 · project_supervisor', d.supervisor],
+    ['Agent 5 · proposal_intelligence', d.proposalIntelligence],
   ];
   noteEl.textContent = 'live';
   bodyEl.innerHTML = agents.map(([name, s], i) => {
@@ -230,9 +231,184 @@ function renderSupervisor(sup) {
   bodyEl.innerHTML = html;
 }
 
+// ── Agent 5 — Detailed Evaluation ───────────────────────────────────────
+function renderEval5(d) {
+  const noteEl = document.getElementById('eval5-note');
+  const criteriaEl = document.getElementById('eval5-criteria');
+  if (!d || !d.available) {
+    noteEl.textContent = 'AGENT_UNAVAILABLE';
+    ['eval5-total','eval5-canonical','eval5-promotion','eval5-fundability',
+     'eval5-excellence','eval5-impact','eval5-implementation'].forEach(id => setText(id, '—'));
+    criteriaEl.innerHTML = `<div class="muted">${escapeHtml((d && d.reason) || 'No run recorded yet.')}</div>`;
+    return;
+  }
+  noteEl.textContent = `${d.mode} · ${d.freshness || 'UNKNOWN'}`;
+  const ds = d.diagnostic_score || {};
+  setText('eval5-total', `${ds.total ?? '—'} / ${ds.max_total ?? 15}`);
+  setText('eval5-canonical', d.canonical_score === null || d.canonical_score === undefined
+    ? 'NOT APPROVED' : `${d.canonical_score} / 15`);
+  setText('eval5-promotion', d.promotion_status || 'UNKNOWN');
+  setText('eval5-fundability', d.fundability || 'UNKNOWN');
+  setText('eval5-excellence', ds.excellence ?? '—');
+  setText('eval5-impact', ds.impact ?? '—');
+  setText('eval5-implementation', ds.implementation ?? '—');
+
+  const promoColor = {BLOCKED: 'var(--red)', PENDING_REVIEW: 'var(--yellow)', APPROVED: 'var(--green)'};
+  document.getElementById('eval5-promotion').style.color = promoColor[d.promotion_status] || 'var(--muted)';
+  const fundColor = {BLOCKED: 'var(--red)', 'NOT READY': 'var(--red)', BORDERLINE: 'var(--yellow)',
+    COMPETITIVE: 'var(--orange)', STRONG: 'var(--green)'};
+  document.getElementById('eval5-fundability').style.color = fundColor[d.fundability] || 'var(--muted)';
+
+  const sections = d.section_scores || [];
+  criteriaEl.innerHTML = sections.map(s => {
+    const listItems = (arr) => (arr && arr.length) ? arr.map(x => `<li>${escapeHtml(x)}</li>`).join('') : '<li class="muted">none</li>';
+    const evidenceItems = (s.evidence || []).map(e =>
+      `<li>${escapeHtml(e.basis)} <small class="muted">(${escapeHtml(e.file)}, ${escapeHtml(e.evidence_type)})</small></li>`
+    ).join('') || '<li class="muted">none</li>';
+    return `<details class="criterion-panel">
+      <summary><span>${escapeHtml(s.criterion_id)} — ${escapeHtml(s.title)}</span>
+        <span class="status-pill ${s.score >= 3.5 ? 'pill-green' : (s.score >= 2 ? 'pill-yellow' : 'pill-red')}">${s.score} / ${s.max_score} · conf ${s.confidence}</span></summary>
+      <div class="muted" style="margin-bottom:8px">${escapeHtml(s.summary)}</div>
+      <b style="font-size:12px">Strengths</b><ul style="font-size:12px">${listItems(s.strengths)}</ul>
+      <b style="font-size:12px">Weaknesses</b><ul style="font-size:12px">${listItems(s.weaknesses)}</ul>
+      <b style="font-size:12px">Red flags</b><ul style="font-size:12px">${listItems(s.red_flags)}</ul>
+      <b style="font-size:12px">Critical fixes</b><ul style="font-size:12px">${listItems(s.critical_fixes)}</ul>
+      <b style="font-size:12px">Evidence</b><ul style="font-size:12px">${evidenceItems}</ul>
+    </details>`;
+  }).join('') || '<div class="muted">No criteria scored yet.</div>';
+}
+
+// ── Agent 5 — Competitive Score ─────────────────────────────────────────
+function renderCompetitive(d) {
+  const noteEl = document.getElementById('competitive-note');
+  const bodyEl = document.getElementById('competitive-body');
+  if (!d || !d.available) {
+    noteEl.textContent = 'AGENT_UNAVAILABLE';
+    setText('competitive-score', '—');
+    setText('competitive-label', '—');
+    bodyEl.innerHTML = `<div class="muted">${escapeHtml((d && d.reason) || 'No run recorded yet.')}</div>`;
+    return;
+  }
+  const ca = d.competitive_assessment || {};
+  noteEl.textContent = d.freshness || 'UNKNOWN';
+  setText('competitive-score', `${ca.score ?? '—'} / 5`);
+  setText('competitive-label', ca.label || '—');
+
+  const components = ca.components || {};
+  bodyEl.innerHTML = Object.entries(components).map(([name, c]) => {
+    const pct = Math.round((c.score || 0) * 100);
+    const blockers = (c.blockers && c.blockers.length) ? c.blockers.map(escapeHtml).join('; ') : 'none';
+    return `<div class="component-row">
+      <div class="component-label"><span>${escapeHtml(name)}</span><span>${c.score}</span></div>
+      <div class="component-bar-track"><div class="component-bar-fill" style="width:${pct}%"></div></div>
+      <div class="muted" style="font-size:11px;margin-top:2px">${escapeHtml(c.rationale)} · blockers: ${blockers}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Agent 5 — Improvement Loop ──────────────────────────────────────────
+function renderImprovementLoop(d) {
+  const noteEl = document.getElementById('improvement-note');
+  const bodyEl = document.getElementById('improvement-body');
+  if (!d || !d.available) {
+    noteEl.textContent = 'AGENT_UNAVAILABLE';
+    ['improvement-weakness-count','improvement-evidence-count','improvement-fixpack-count'].forEach(id => setText(id, '—'));
+    bodyEl.innerHTML = `<div class="muted">${escapeHtml((d && d.reason) || 'No run recorded yet.')}</div>`;
+    return;
+  }
+  noteEl.textContent = d.freshness || 'UNKNOWN';
+  const weaknesses = d.weaknesses || [];
+  const evidencePacks = d.evidence_packs || [];
+  const fixPacks = d.fix_packs || [];
+  setText('improvement-weakness-count', weaknesses.length);
+  setText('improvement-evidence-count', evidencePacks.length);
+  setText('improvement-fixpack-count', fixPacks.length);
+
+  const sevPill = {high: 'pill-red', medium: 'pill-yellow', low: 'pill-grey'};
+  const fixPillMap = {PENDING_REVIEW: 'pill-yellow', APPROVED: 'pill-green', REJECTED: 'pill-red', APPLIED: 'pill-green', STALE: 'pill-grey'};
+
+  let html = '<b style="font-size:12px">Weaknesses</b>';
+  html += weaknesses.length ? weaknesses.map((w, i) => {
+    const last = i === weaknesses.length - 1 ? 'border-bottom:none' : '';
+    return `<div class="row" style="${last}"><span>${escapeHtml(w.title)}<br><small class="muted">${escapeHtml(w.criterion)} · ${escapeHtml(w.status)}</small></span><span class="status-pill ${sevPill[w.severity] || 'pill-grey'}">${(w.severity||'').toUpperCase()}</span></div>`;
+  }).join('') : '<div class="muted">No weaknesses recorded.</div>';
+
+  html += '<b style="font-size:12px;display:block;margin-top:12px">Fix packs (PENDING_REVIEW by default -- never auto-applied)</b>';
+  html += fixPacks.length ? fixPacks.map((fp, i) => {
+    const last = i === fixPacks.length - 1 ? 'border-bottom:none' : '';
+    return `<div class="row" style="${last}"><span>${escapeHtml(fp.proposed_action)}<br><small class="muted">affects: ${escapeHtml((fp.affected_files||[]).join(', '))}</small></span><span class="status-pill ${fixPillMap[fp.status] || 'pill-grey'}">${escapeHtml(fp.status)}</span></div>`;
+  }).join('') : '<div class="muted">No fix packs.</div>';
+
+  bodyEl.innerHTML = html;
+}
+
+// ── Agent 5 — Evaluation Timeline ───────────────────────────────────────
+function renderMiniChart(records) {
+  if (!records || records.length < 2) {
+    return '<div class="muted">Not enough snapshots yet for a trend chart (need at least 2).</div>';
+  }
+  const w = 600, h = 160, pad = 24;
+  const maxVal = 15;
+  const n = records.length;
+  const xFor = i => pad + (i * (w - 2 * pad)) / (n - 1);
+  const yFor = v => h - pad - (v / maxVal) * (h - 2 * pad);
+
+  const series = [
+    {key: 'total', color: '#9d7bff', label: 'Total'},
+    {key: 'excellence', color: '#22c55e', label: 'Excellence'},
+    {key: 'impact', color: '#3b82f6', label: 'Impact'},
+    {key: 'implementation', color: '#f59e0b', label: 'Implementation'},
+  ];
+
+  let svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;background:#12131a;border-radius:8px">`;
+  series.forEach(s => {
+    const points = records.map((r, i) => `${xFor(i)},${yFor(r[s.key] || 0)}`).join(' ');
+    svg += `<polyline points="${points}" fill="none" stroke="${s.color}" stroke-width="2"/>`;
+  });
+  svg += '</svg>';
+
+  const legend = series.map(s => `<span style="color:${s.color};margin-right:12px">● ${s.label}</span>`).join('');
+  return svg + `<div style="margin-top:8px;font-size:11px">${legend}</div>`;
+}
+
+function renderTimeline(d, historyResp) {
+  const noteEl = document.getElementById('timeline-note');
+  const chartEl = document.getElementById('timeline-chart');
+  const ts = (d && d.available) ? d.timeline_summary : null;
+
+  if (!ts || !ts.latest) {
+    noteEl.textContent = (d && d.available) ? 'no snapshots yet' : 'AGENT_UNAVAILABLE';
+    ['timeline-baseline','timeline-latest','timeline-gain','timeline-count','timeline-commit'].forEach(id => setText(id, '—'));
+    chartEl.innerHTML = '<div class="muted">No timeline data yet.</div>';
+    return;
+  }
+  noteEl.textContent = `${ts.snapshot_count} snapshot(s)`;
+  setText('timeline-baseline', `${ts.baseline.total} / 15`);
+  setText('timeline-latest', `${ts.latest.total} / 15`);
+  const gain = ts.total_gain;
+  setText('timeline-gain', `${gain > 0 ? '+' : ''}${gain}`);
+  document.getElementById('timeline-gain').style.color = gain > 0 ? 'var(--green)' : (gain < 0 ? 'var(--red)' : 'var(--muted)');
+  setText('timeline-count', ts.snapshot_count);
+  setText('timeline-commit', ts.latest.repo_commit || '—');
+
+  const records = (historyResp && historyResp.records) || [];
+  chartEl.innerHTML = renderMiniChart(records);
+}
+
 async function loadAll() {
   const d = await loadAggregate();
   if (!d) return;
+
+  let eval5 = {available: false};
+  let historyResp = {available: false, records: []};
+  try {
+    eval5 = await fetch('/api/v1/proposal-intelligence').then(r => r.json());
+  } catch (e) { /* keep default unavailable */ }
+  try {
+    historyResp = await fetch('/api/v1/proposal-intelligence/history').then(r => r.json());
+  } catch (e) { /* keep default empty */ }
+  d.proposalIntelligence = eval5;
+
   renderAgentCards(d);
   renderDocsSummary(d.docs);
   renderDocs(d.docs);
@@ -241,6 +417,11 @@ async function loadAll() {
   renderGuardian(d.guardian);
   renderSupervisorSummary(d.supervisor);
   renderSupervisor(d.supervisor);
+
+  renderEval5(eval5);
+  renderCompetitive(eval5);
+  renderImprovementLoop(eval5);
+  renderTimeline(eval5, historyResp);
 }
 
 loadAll();

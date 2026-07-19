@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import load_config_or_exit
-from app.state_reader import read_all_state, get_live_repo_commit
+from app.state_reader import read_all_state, get_live_repo_commit, read_history
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -103,6 +103,16 @@ def api_guardian():
 @app.get("/api/v1/supervisor")
 def api_supervisor():
     return read_all_state(STATE_DIR, REPO_ROOT)["supervisor"]
+
+
+@app.get("/api/v1/proposal-intelligence")
+def api_proposal_intelligence():
+    return read_all_state(STATE_DIR, REPO_ROOT)["proposal_intelligence"]
+
+
+@app.get("/api/v1/proposal-intelligence/history")
+def api_proposal_intelligence_history():
+    return {"available": True, "records": read_history(STATE_DIR)}
 
 
 @app.get("/", response_class=HTMLResponse)

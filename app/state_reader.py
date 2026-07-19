@@ -17,6 +17,7 @@ STATE_FILES = {
     "evaluation": "evaluation_state.json",
     "guardian": "guardian_state.json",
     "supervisor": "supervisor_state.json",
+    "proposal_intelligence": "proposal_intelligence_state.json",
 }
 
 
@@ -61,3 +62,22 @@ def read_state(state_dir: Path, key: str, repo_root: Path) -> dict:
 
 def read_all_state(state_dir: Path, repo_root: Path) -> dict:
     return {key: read_state(state_dir, key, repo_root) for key in STATE_FILES}
+
+
+def read_history(state_dir: Path) -> list[dict]:
+    """Read-only: compact evaluation-timeline snapshots written by Agent 5
+    (agents/proposal_intelligence.py) under FORISEC_STATE_DIR/history/.
+    Never written to by the dashboard."""
+    history_dir = state_dir / "history"
+    if not history_dir.exists():
+        return []
+    records = []
+    for f in sorted(history_dir.glob("evaluation_*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                records.append(data)
+        except Exception:
+            continue
+    records.sort(key=lambda r: r.get("timestamp", ""))
+    return records

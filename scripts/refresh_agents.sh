@@ -1,12 +1,12 @@
 #!/bin/bash
 # scripts/refresh_agents.sh
 #
-# Runs the four FORISEC CL3 agents in sequence. Fail-fast on a genuine
+# Runs the five FORISEC CL3 agents in sequence. Fail-fast on a genuine
 # execution error (missing manifest, missing repo, etc. -- each
 # agent's CLI entrypoint exits non-zero only for status=="failed").
 #
-# A diagnostic FAIL/CRITICAL result from repository_guardian or
-# project_supervisor is NOT an execution error -- as long as the
+# A diagnostic FAIL/CRITICAL/BLOCKED result from repository_guardian,
+# project_supervisor, or proposal_intelligence is NOT an execution error -- as long as the
 # agent's own state JSON was written successfully, its CLI exits 0.
 # This script must not be "fixed" to swallow real execution errors --
 # it relies on that existing exit-code contract in agents/cli_entry.py.
@@ -39,4 +39,7 @@ echo "[refresh_agents] repository_guardian..."
 echo "[refresh_agents] project_supervisor..."
 "$PYTHON" -m agents.project_supervisor
 
-echo "[refresh_agents] all four agents completed."
+echo "[refresh_agents] proposal_intelligence..."
+"$PYTHON" -m agents.proposal_intelligence
+
+echo "[refresh_agents] all five agents completed."
