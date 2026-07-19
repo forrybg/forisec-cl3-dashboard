@@ -1,0 +1,20 @@
+[Unit]
+Description=FORISEC CL3 Dashboard (standalone, isolated from foritech-os)
+After=network.target
+
+[Service]
+Type=simple
+User=forisec-dashboard
+Group=forisec-dashboard
+WorkingDirectory=/home/forybg/services/forisec-cl3-dashboard
+EnvironmentFile=/etc/forisec-cl3-dashboard/environment
+ExecStart=/home/forybg/services/forisec-cl3-dashboard/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8766 --no-access-log
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/forisec-cl3-dashboard
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

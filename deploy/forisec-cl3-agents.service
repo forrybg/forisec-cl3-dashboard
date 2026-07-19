@@ -1,0 +1,14 @@
+[Unit]
+Description=FORISEC CL3 agent refresh (docs_controller, proposal_evaluator, repository_guardian, project_supervisor)
+
+[Service]
+Type=oneshot
+User=forisec-dashboard
+Group=forisec-dashboard
+WorkingDirectory=/home/forybg/services/forisec-cl3-dashboard
+EnvironmentFile=/etc/forisec-cl3-dashboard/environment
+ExecStart=/home/forybg/services/forisec-cl3-dashboard/scripts/refresh_agents.sh
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/forisec-cl3-dashboard
+ProtectHome=read-only

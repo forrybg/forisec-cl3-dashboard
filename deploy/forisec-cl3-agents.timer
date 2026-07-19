@@ -1,0 +1,10 @@
+[Unit]
+Description=Run FORISEC CL3 agent refresh every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
