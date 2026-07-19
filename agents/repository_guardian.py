@@ -18,7 +18,7 @@ Usage: python -m agents.repository_guardian
 import re
 from pathlib import Path
 
-from agents.common import atomic_write_json, base_state
+from agents.common import atomic_write_json, base_state, safe_repo_path, UnsafeRepositoryPathError
 
 STATE_FILENAME = "guardian_state.json"
 
@@ -63,7 +63,29 @@ def check_self_references(repo_root: Path, files: list[Path]) -> list[dict]:
             ref = m.group(1)
             if ref in seen:
                 continue
-            if (repo_root / ref).exists():
+
+            try:
+                target = safe_repo_path(repo_root, ref)
+            except UnsafeRepositoryPathError:
+                # The reference resolves outside the repo root (absolute
+                # path, `../` escape, or a symlink escape). Do NOT read
+                # it, do NOT even check existence via the raw path --
+                # flag it deterministically instead.
+                seen.add(ref)
+                findings.append({
+                    "id": f"unsafe-repository-path-{f.name}-{ref.replace('/', '_')}",
+                    "severity": "high",
+                    "title": f"Unsafe path reference in {f.name}",
+                    "description": (
+                        f"References `{ref}`, which resolves outside the repository "
+                        f"root (absolute path, `../` escape, or a symlink escape). "
+                        f"Not read."
+                    ),
+                    "source": str(f.relative_to(repo_root)),
+                })
+                continue
+
+            if target.exists():
                 continue
             if ref.split("/")[-1] in basename_index:
                 continue

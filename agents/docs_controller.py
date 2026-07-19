@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from agents.common import atomic_write_json, base_state
+from agents.common import atomic_write_json, base_state, safe_repo_path, UnsafeRepositoryPathError
 
 STATUS_MARKER_RE = re.compile(
     r"<!--\s*CANONICAL_STATUS:\s*(\w+)\s*"
@@ -47,7 +47,15 @@ def phase_is_active(phase_name, phases, frozen_or_draft, doc_by_phase_and_requir
 def read_file_status(repo_root: Path, rel_path: str) -> dict:
     """0-byte / whitespace-only files count as NOT existing (scaffold
     placeholders, not real content)."""
-    full = repo_root / rel_path
+    try:
+        full = safe_repo_path(repo_root, rel_path)
+    except UnsafeRepositoryPathError:
+        # Deliberately do not read the target -- the manifest path
+        # itself is untrustworthy (absolute, `../` escape, or a
+        # symlink resolving outside the repo). run() turns this into a
+        # HIGH finding; the external file is never opened.
+        return {"exists": False, "marker_status": None, "version": None,
+                "last_reviewed": None, "unsafe": True}
     if not full.exists():
         return {"exists": False, "marker_status": None, "version": None, "last_reviewed": None}
     try:
@@ -104,7 +112,20 @@ def run(repo_root: Path, state_dir: Path) -> dict:
         blocked_by = [dep for dep in d.get("dependencies", [])
                       if dep in path_index and dep not in frozen_or_draft]
 
-        if not r["exists"]:
+        if r.get("unsafe"):
+            status = "REVIEW_REQUIRED"
+            findings.append({
+                "id": f"unsafe-repository-path-{path.replace('/', '_')}",
+                "severity": "high",
+                "title": f"Unsafe path reference rejected for {path}",
+                "description": (
+                    "The manifest path for this document resolves outside the "
+                    "repository root (absolute path, `../` escape, or a symlink "
+                    "escape) and was not read."
+                ),
+                "source": path,
+            })
+        elif not r["exists"]:
             status = "NOT_APPLICABLE_YET" if not phase_active else ("BLOCKED" if blocked_by else "NOT_STARTED")
         else:
             marker = r["marker_status"]
