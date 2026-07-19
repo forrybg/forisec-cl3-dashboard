@@ -17,26 +17,64 @@
     </div>
   </div>
 
-  <div class="grid-2">
-    <div class="card" id="agent-card">
-      <div class="section-title">🩺 Agent Status Cards <span class="note" id="agent-note">loading…</span></div>
-      <div id="agent-body"><div class="muted">Loading agent statuses…</div></div>
-    </div>
-
-    <div class="card" id="docs-card">
-      <div class="section-title">📄 Canonical Document Checklist <span class="note" id="docs-note">loading…</span></div>
-      <div id="docs-body"><div class="muted">Loading document checklist…</div></div>
-    </div>
+  <div class="card" id="agent-card">
+    <div class="section-title">🩺 Agent Status Cards <span class="note" id="agent-note">loading…</span></div>
+    <div class="muted" style="margin-bottom:8px">Brief overview only — see the detailed panel for each agent below.</div>
+    <div id="agent-body"><div class="muted">Loading agent statuses…</div></div>
   </div>
 
+  <!-- Agent 1 — Documentation Controller -->
+  <div class="card" id="docs-card">
+    <div class="section-title">📄 Agent 1 — Documentation Controller <span class="note" id="docs-note">loading…</span></div>
+    <div class="agg-grid" id="docs-summary" style="margin-bottom:16px">
+      <div><div class="label">Overall</div><div id="docs-sum-overall" class="value">—</div></div>
+      <div><div class="label">Freshness</div><div id="docs-sum-freshness" class="value">—</div></div>
+      <div><div class="label">Repo commit</div><div id="docs-sum-commit" class="value mono">—</div></div>
+      <div><div class="label">Planned</div><div id="docs-sum-planned" class="value">—</div></div>
+      <div><div class="label">Frozen</div><div id="docs-sum-frozen" class="value">—</div></div>
+      <div><div class="label">Draft</div><div id="docs-sum-draft" class="value">—</div></div>
+      <div><div class="label">Review required</div><div id="docs-sum-review" class="value">—</div></div>
+      <div><div class="label">Missing</div><div id="docs-sum-missing" class="value">—</div></div>
+    </div>
+    <details id="docs-details">
+      <summary>📋 Document checklist (click to expand)</summary>
+      <div id="docs-body"><div class="muted">Loading document checklist…</div></div>
+    </details>
+  </div>
+
+  <!-- Agent 2 — Proposal Evaluator -->
   <div class="card" id="eval-card">
     <div class="section-title">🧭 Agent 2 — Proposal Evaluator <span class="note" id="eval-note">loading…</span></div>
     <div id="eval-body"><div class="muted">Loading evaluator state…</div></div>
   </div>
 
+  <!-- Agent 3 — Repository Guardian -->
   <div class="card" id="guardian-card">
     <div class="section-title">🛡️ Agent 3 — Repository Guardian <span class="note" id="guardian-note">loading…</span></div>
+    <div class="agg-grid" id="guardian-summary" style="margin-bottom:16px">
+      <div><div class="label">Guardian status</div><div id="guardian-sum-status" class="value">—</div></div>
+      <div><div class="label">Freshness</div><div id="guardian-sum-freshness" class="value">—</div></div>
+      <div><div class="label">Critical</div><div id="guardian-sum-critical" class="value">—</div></div>
+      <div><div class="label">High</div><div id="guardian-sum-high" class="value">—</div></div>
+      <div><div class="label">Medium</div><div id="guardian-sum-medium" class="value">—</div></div>
+      <div><div class="label">Scanned files</div><div id="guardian-sum-scanned" class="value">—</div></div>
+    </div>
     <div id="guardian-body"><div class="muted">Loading guardian state…</div></div>
+  </div>
+
+  <!-- Agent 4 — Project Supervisor -->
+  <div class="card" id="supervisor-card">
+    <div class="section-title">🩺 Agent 4 — Project Supervisor <span class="note" id="supervisor-note">loading…</span></div>
+    <div class="agg-grid" id="supervisor-summary" style="margin-bottom:16px">
+      <div><div class="label">Overall system status</div><div id="sup-sum-overall" class="value">—</div></div>
+      <div><div class="label">Freshness</div><div id="sup-sum-freshness" class="value">—</div></div>
+      <div><div class="label">Repo commit</div><div id="sup-sum-commit" class="value mono">—</div></div>
+      <div><div class="label">State files available</div><div id="sup-sum-statefiles" class="value">—</div></div>
+      <div><div class="label">Agent 1 status</div><div id="sup-sum-agent1" class="value">—</div></div>
+      <div><div class="label">Agent 2 status</div><div id="sup-sum-agent2" class="value">—</div></div>
+      <div><div class="label">Agent 3 status</div><div id="sup-sum-agent3" class="value">—</div></div>
+    </div>
+    <div id="supervisor-body"><div class="muted">Loading supervisor state…</div></div>
   </div>
 
   <div class="card dashed">

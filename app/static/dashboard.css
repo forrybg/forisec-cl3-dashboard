@@ -29,4 +29,17 @@ border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
 .pill-grey{background:#1c2230;color:var(--muted);border:1px solid #2a3040}
 .pill-red{background:#3a1414;color:var(--red);border:1px solid #5c1f1f}
 .footer-note{margin-top:16px;font-size:11px;color:#4a4f60;text-align:center}
+/* Agent 4 (project_supervisor) panel status coloring -- border + subtle bg tint */
+.panel-ok{border-color:#1f4a2e}
+.panel-review{border-color:#4a3d1e}
+.panel-degraded{border-color:#6b3d16}
+.panel-critical{border-color:#5c1f1f;background:#1f1517}
+.panel-unavailable{border-color:#2a3040}
+/* Collapsible Agent 1 document checklist -- native <details>/<summary>, closed by default */
+details#docs-details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--text);
+padding:10px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none}
+details#docs-details summary::-webkit-details-marker{display:none}
+details#docs-details summary::before{content:▶;font-size:10px;color:var(--muted);transition:transform .15s}
+details#docs-details[open] summary::before{transform:rotate(90deg)}
+details#docs-details summary:hover{color:var(--accent)}
 @media(max-width:900px){.grid-2{grid-template-columns:1fr}.agg-grid{grid-template-columns:1fr 1fr}}
