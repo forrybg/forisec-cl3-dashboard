@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "evaluation_state",
+  "type": "object",
+  "required": ["schema_version", "agent_id", "repo_commit", "run_timestamp", "status", "score"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "repo_commit": {"type": ["string", "null"]},
+    "run_timestamp": {"type": "string"},
+    "status": {"type": "string"},
+    "overall_status": {"type": "string"},
+    "mode": {"type": ["string", "null"], "enum": [null, "diagnostic", "evaluation"]},
+    "score": {"type": "null", "description": "MUST always be null -- 0 is never used as a placeholder."},
+    "findings": {"type": "array"}
+  }
+}

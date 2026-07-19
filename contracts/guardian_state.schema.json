@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "guardian_state",
+  "type": "object",
+  "required": ["schema_version", "agent_id", "repo_commit", "run_timestamp", "status", "guardian_status"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "repo_commit": {"type": ["string", "null"]},
+    "run_timestamp": {"type": "string"},
+    "status": {"type": "string"},
+    "guardian_status": {"type": "string", "enum": ["PASS", "WARN", "FAIL"]},
+    "scanned_files": {"type": "integer"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "title"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "docs_state",
+  "type": "object",
+  "required": ["schema_version", "agent_id", "repo_commit", "run_timestamp", "status"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "repo_commit": {"type": ["string", "null"]},
+    "run_timestamp": {"type": "string"},
+    "status": {"type": "string", "enum": ["completed", "failed"]},
+    "overall_status": {"type": "string"},
+    "planned_count": {"type": "integer"},
+    "frozen_count": {"type": "integer"},
+    "documents": {"type": "array"},
+    "findings": {"type": "array"}
+  }
+}

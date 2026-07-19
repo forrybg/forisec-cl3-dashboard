@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "supervisor_state",
+  "type": "object",
+  "required": ["schema_version", "agent_id", "repo_commit", "run_timestamp", "status", "overall_status"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "repo_commit": {"type": ["string", "null"]},
+    "run_timestamp": {"type": "string"},
+    "status": {"type": "string"},
+    "overall_status": {"type": "string", "enum": ["CRITICAL", "DEGRADED", "REVIEW", "OK"]},
+    "state_files": {"type": "object"},
+    "findings": {"type": "array"}
+  }
+}

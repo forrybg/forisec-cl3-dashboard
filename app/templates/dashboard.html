@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}FORISEC CL3 — Standalone Dashboard{% endblock %}
+{% block body %}
+<header>
+  <div class="logo">FORISEC CL3 <span>· standalone dashboard</span></div>
+  <div class="badge">● forisec-cl3-2026 (dev :8766)</div>
+</header>
+
+<main>
+  <div class="card" id="agg-card" style="border-color:#7d5fd6">
+    <div class="section-title">🧾 FORISEC Overall Status <span class="note" id="agg-note">loading…</span></div>
+    <div class="agg-grid">
+      <div><div class="label">Overall</div><div id="agg-overall" class="value">—</div></div>
+      <div><div class="label">Live commit</div><div id="agg-commit" class="value mono">—</div></div>
+      <div><div class="label">Critical findings</div><div id="agg-critical" class="value">—</div></div>
+      <div><div class="label">Pending manual reviews</div><div id="agg-reviews" class="value">—</div></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card" id="agent-card">
+      <div class="section-title">🩺 Agent Status Cards <span class="note" id="agent-note">loading…</span></div>
+      <div id="agent-body"><div class="muted">Loading agent statuses…</div></div>
+    </div>
+
+    <div class="card" id="docs-card">
+      <div class="section-title">📄 Canonical Document Checklist <span class="note" id="docs-note">loading…</span></div>
+      <div id="docs-body"><div class="muted">Loading document checklist…</div></div>
+    </div>
+  </div>
+
+  <div class="card" id="eval-card">
+    <div class="section-title">🧭 Agent 2 — Proposal Evaluator <span class="note" id="eval-note">loading…</span></div>
+    <div id="eval-body"><div class="muted">Loading evaluator state…</div></div>
+  </div>
+
+  <div class="card" id="guardian-card">
+    <div class="section-title">🛡️ Agent 3 — Repository Guardian <span class="note" id="guardian-note">loading…</span></div>
+    <div id="guardian-body"><div class="muted">Loading guardian state…</div></div>
+  </div>
+
+  <div class="card dashed">
+    <div class="section-title">📎 Static Proposal Context <span class="note">STATIC — NOT LIVE</span></div>
+    <div class="muted">This block is a manually maintained snapshot, not derived from any agent run.
+    Consortium: P1 Foritech (Coordinator, WP1/WP2/WP6), P2 RTU (WP3), P3 Logiicdev (WP4), P4 Solarix (WP5).</div>
+  </div>
+
+  <div class="footer-note">Standalone service — no shared process, imports, or state with the old dashboard (127.0.0.1:8765).</div>
+</main>
+{% endblock %}
