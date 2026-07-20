@@ -38,6 +38,8 @@ def _compute_summary() -> dict:
     docs, evaluation, guardian, supervisor = (
         state["docs"], state["evaluation"], state["guardian"], state["supervisor"]
     )
+    decisions = state["decisions"]
+    budget = state["budget"]
 
     fresh_count = sum(1 for s in (docs, evaluation, guardian) if s.get("freshness") == "FRESH")
 
@@ -72,6 +74,8 @@ def _compute_summary() -> dict:
         "evaluation": evaluation,
         "guardian": guardian,
         "supervisor": supervisor,
+        "decisions": decisions,
+        "budget": budget,
     }
 
 
@@ -125,6 +129,12 @@ def api_proposal_intelligence_history():
     return {"available": True, "records": read_history(STATE_DIR)}
 
 
+# Bumped whenever a static asset (dashboard.css / dashboard.js) changes,
+# so a browser tab left open across a deploy is forced to refetch instead
+# of silently rendering with stale cached CSS/JS.
+ASSET_VERSION = "2026-07-20-3"
+
+
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
-    return templates.TemplateResponse(request, "dashboard.html", {})
+    return templates.TemplateResponse(request, "dashboard.html", {"asset_version": ASSET_VERSION})

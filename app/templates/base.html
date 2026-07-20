@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}FORISEC CL3 Dashboard{% endblock %}</title>
-<link rel="stylesheet" href="/static/dashboard.css">
+<link rel="stylesheet" href="/static/dashboard.css?v={{ asset_version }}">
 </head>
 <body>
 {% block body %}{% endblock %}
-<script src="/static/dashboard.js"></script>
+<script src="/static/dashboard.js?v={{ asset_version }}"></script>
 </body>
 </html>
