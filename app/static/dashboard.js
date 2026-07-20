@@ -470,21 +470,40 @@ function renderBudget(d) {
   noteEl.textContent = d.summary || 'live';
   const rows = d.rows || [];
   const fmtEur = v => v == null ? '—' : `€${Number(v).toLocaleString('en-US', {maximumFractionDigits: 0})}`;
-  let html = '<table class="budget-table"><thead><tr><th>WP</th><th>Lead</th><th style="text-align:right">PM</th><th style="text-align:right">Grand total</th><th>Status</th></tr></thead><tbody>';
+  // % is always computed client-side from the live total -- never hardcoded,
+  // so it stays correct automatically whenever any WP figure changes.
+  const grandTotal = d.total_eur || 0;
+  const pctOf = v => (v == null || !grandTotal) ? '—' : `${((v / grandTotal) * 100).toFixed(1)}%`;
+
+  let html = '<table class="budget-table"><colgroup>'
+    + '<col class="col-wp"><col class="col-lead"><col class="col-pm">'
+    + '<col class="col-total"><col class="col-pct"><col class="col-status">'
+    + '</colgroup><thead><tr><th>WP</th><th>Lead</th><th class="num">PM</th>'
+    + '<th class="num">Grand total</th><th class="num">% of total</th><th>Status</th></tr></thead><tbody>';
+
   rows.forEach(r => {
     if (!r.available) {
-      html += `<tr><td>${escapeHtml(r.wp)}</td><td colspan="4" class="muted">unavailable — ${escapeHtml(r.reason || '')}</td></tr>`;
+      html += `<tr><td>${escapeHtml(r.wp)}</td><td colspan="5" class="muted">unavailable — ${escapeHtml(r.reason || '')}</td></tr>`;
       return;
     }
-    const draftFlag = r.grand_total_is_draft ? ' <span class="status-pill pill-yellow" title="Old/superseded task-set figure, not current">DRAFT/OLD</span>' : '';
+    const draftFlag = r.grand_total_is_draft
+      ? '<span class="status-pill pill-yellow draft-flag" title="Old/superseded task-set figure, not current">DRAFT/OLD</span>'
+      : '';
     const statusPill = r.status
       ? `<span class="status-pill ${r.status.includes('NOT') ? 'pill-yellow' : 'pill-green'}">${escapeHtml(r.status)}</span>`
       : '<span class="muted">—</span>';
-    html += `<tr><td><b>${escapeHtml(r.wp)}</b></td><td>${escapeHtml(r.lead)}</td><td class="num">${r.pm ?? '—'}</td><td class="num">${fmtEur(r.grand_total_eur)}${draftFlag}</td><td>${statusPill}</td></tr>`;
+    html += `<tr>
+      <td><b>${escapeHtml(r.wp)}</b></td>
+      <td>${escapeHtml(r.lead)}</td>
+      <td class="num">${r.pm ?? '—'}</td>
+      <td class="num">${fmtEur(r.grand_total_eur)}${draftFlag}</td>
+      <td class="num">${pctOf(r.grand_total_eur)}</td>
+      <td>${statusPill}</td>
+    </tr>`;
   });
   html += '</tbody></table>';
   bodyEl.innerHTML = html;
-  totalEl.textContent = `Total: ${d.total_pm ?? '—'} PM · ${fmtEur(d.total_eur)} (sum of current per-WP README figures, not consortium-reconciled; WP2 figure marked DRAFT/OLD is excluded from being treated as final)`;
+  totalEl.textContent = `Total: ${d.total_pm ?? '—'} PM · ${fmtEur(d.total_eur)} · 100% (sum of current per-WP README figures, not consortium-reconciled; WP2's DRAFT/OLD figure is still included in this total and its % share until it is re-derived against the current task set)`;
 }
 
 async function loadBudget() {

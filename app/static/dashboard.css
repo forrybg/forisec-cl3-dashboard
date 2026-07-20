@@ -69,8 +69,16 @@ details.criterion-panel[open] summary{margin-bottom:8px}
 .tab-btn:hover{color:var(--text)}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
-.budget-table{width:100%;border-collapse:collapse;margin-top:8px}
-.budget-table th{text-align:left;font-size:11px;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border)}
-.budget-table td{font-size:13px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.budget-table{width:100%;border-collapse:collapse;margin-top:8px;table-layout:fixed}
+.budget-table th{text-align:left;font-size:11px;color:var(--muted);padding:8px 16px;border-bottom:1px solid var(--border)}
+.budget-table td{font-size:13px;padding:10px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
 .budget-table tr:last-child td{border-bottom:none}
-.budget-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.budget-table td.num,.budget-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.budget-table col.col-wp{width:8%}
+.budget-table col.col-lead{width:14%}
+.budget-table col.col-pm{width:9%}
+.budget-table col.col-total{width:16%}
+.budget-table col.col-pct{width:10%}
+.budget-table col.col-status{width:auto}
+.budget-table .status-pill{margin-left:10px;white-space:nowrap}
+.budget-table .draft-flag{margin-left:10px}
