@@ -1,7 +1,7 @@
 """
 app/state_reader.py
 
-Read-only access to the four agent state JSON files under
+Read-only access to the agent state JSON files under
 FORISEC_STATE_DIR. The dashboard NEVER scans markdown itself, never
 runs agents, never writes state -- it only reads what the agents
 already produced. The only "live" operation permitted is a safe,
@@ -18,6 +18,8 @@ STATE_FILES = {
     "guardian": "guardian_state.json",
     "supervisor": "supervisor_state.json",
     "proposal_intelligence": "proposal_intelligence_state.json",
+    "decisions": "decisions_state.json",
+    "budget": "budget_state.json",
 }
 
 

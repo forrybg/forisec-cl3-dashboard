@@ -7,6 +7,12 @@
 </header>
 
 <main>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-btn-overview" onclick="switchTab('overview')">📊 Overview</button>
+    <button class="tab-btn" id="tab-btn-budget" onclick="switchTab('budget')">💶 Budget</button>
+  </div>
+
+  <div id="tab-overview" class="tab-panel active">
   <div class="card" id="agg-card" style="border-color:#7d5fd6">
     <div class="section-title">🧾 FORISEC Overall Status <span class="note" id="agg-note">loading…</span></div>
     <div class="agg-grid">
@@ -17,10 +23,18 @@
     </div>
   </div>
 
-  <div class="card" id="agent-card">
-    <div class="section-title">🩺 Agent Status Cards <span class="note" id="agent-note">loading…</span></div>
-    <div class="muted" style="margin-bottom:8px">Brief overview only — see the detailed panel for each agent below.</div>
-    <div id="agent-body"><div class="muted">Loading agent statuses…</div></div>
+  <div class="grid-2">
+    <div class="card" id="agent-card">
+      <div class="section-title">🩺 Agent Status Cards <span class="note" id="agent-note">loading…</span></div>
+      <div class="muted" style="margin-bottom:8px">Brief overview only — see the detailed panel for each agent below.</div>
+      <div id="agent-body"><div class="muted">Loading agent statuses…</div></div>
+    </div>
+
+    <div class="card" id="findings-card">
+      <div class="section-title">📋 Decision Log (ISS-XXX) <span class="note" id="findings-note">loading…</span></div>
+      <div class="muted" style="margin-bottom:8px">Parsed from <span class="mono">99_decisions/DECISION_LOG.md</span> by the <span class="mono">decision_log</span> agent. Guardian/Supervisor findings are shown once, in their own detailed panels below -- not duplicated here.</div>
+      <div id="findings-body"><div class="muted">Loading decision log…</div></div>
+    </div>
   </div>
 
   <!-- Agent 1 — Documentation Controller -->
@@ -139,6 +153,17 @@
     <div class="section-title">📎 Static Proposal Context <span class="note">STATIC — NOT LIVE</span></div>
     <div class="muted">This block is a manually maintained snapshot, not derived from any agent run.
     Consortium: P1 Foritech (Coordinator, WP1/WP2/WP6), P2 RTU (WP3), P3 Logiicdev (WP4), P4 Solarix (WP5).</div>
+  </div>
+
+  </div>
+
+  <div id="tab-budget" class="tab-panel">
+    <div class="card" id="budget-card">
+      <div class="section-title">💶 Budget Allocation <span class="note" id="budget-note">loading…</span></div>
+      <div class="muted" style="margin-bottom:8px">Task → Deliverable → Role → PM → Budget. Parsed live from each WP repo's own README.md by the <span class="mono">budget_reader</span> agent (six fixed repos, sibling of this canon repo — see that agent's docstring for the documented scope exception). Foritech-internal working figures, not yet consortium-reconciled.</div>
+      <div id="budget-body"><div class="muted">Loading budget breakdown…</div></div>
+      <div id="budget-total" class="muted" style="margin-top:10px"></div>
+    </div>
   </div>
 
   <div class="footer-note">Standalone service — no shared process, imports, or state with the old dashboard (127.0.0.1:8765).</div>

@@ -61,3 +61,16 @@ details.criterion-panel summary{cursor:pointer;font-size:13px;font-weight:600;li
 display:flex;justify-content:space-between;align-items:center}
 details.criterion-panel summary::-webkit-details-marker{display:none}
 details.criterion-panel[open] summary{margin-bottom:8px}
+
+/* --- Tab bar (added for Budget tab) --- */
+.tab-bar{display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)}
+.tab-btn{background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;padding:10px 16px;cursor:pointer;border-bottom:2px solid transparent}
+.tab-btn.active{color:var(--text);border-bottom-color:#7d5fd6}
+.tab-btn:hover{color:var(--text)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.budget-table{width:100%;border-collapse:collapse;margin-top:8px}
+.budget-table th{text-align:left;font-size:11px;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border)}
+.budget-table td{font-size:13px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.budget-table tr:last-child td{border-bottom:none}
+.budget-table td.num{text-align:right;font-variant-numeric:tabular-nums}

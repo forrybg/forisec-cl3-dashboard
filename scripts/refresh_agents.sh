@@ -42,4 +42,10 @@ echo "[refresh_agents] project_supervisor..."
 echo "[refresh_agents] proposal_intelligence..."
 "$PYTHON" -m agents.proposal_intelligence
 
-echo "[refresh_agents] all five agents completed."
+echo "[refresh_agents] decision_log..."
+"$PYTHON" -m agents.decision_log
+
+echo "[refresh_agents] budget_reader..."
+"$PYTHON" -m agents.budget_reader
+
+echo "[refresh_agents] all seven agents completed."

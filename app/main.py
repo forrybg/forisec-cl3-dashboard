@@ -110,6 +110,16 @@ def api_proposal_intelligence():
     return read_all_state(STATE_DIR, REPO_ROOT)["proposal_intelligence"]
 
 
+@app.get("/api/v1/decisions")
+def api_decisions():
+    return read_all_state(STATE_DIR, REPO_ROOT)["decisions"]
+
+
+@app.get("/api/v1/budget")
+def api_budget():
+    return read_all_state(STATE_DIR, REPO_ROOT)["budget"]
+
+
 @app.get("/api/v1/proposal-intelligence/history")
 def api_proposal_intelligence_history():
     return {"available": True, "records": read_history(STATE_DIR)}

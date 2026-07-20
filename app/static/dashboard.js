@@ -395,6 +395,32 @@ function renderTimeline(d, historyResp) {
   chartEl.innerHTML = renderMiniChart(records);
 }
 
+const ISS_STATUS_PILL = {RESOLVED: 'pill-green', OPEN: 'pill-yellow', CLOSED: 'pill-grey'};
+
+function decisionRows(entries) {
+  if (!entries || entries.length === 0) {
+    return '<div class="row" style="border-bottom:none"><span>No ISS entries logged yet</span></div>';
+  }
+  return entries.map((e, i) => {
+    const cls = ISS_STATUS_PILL[(e.status || '').toUpperCase()] || 'pill-grey';
+    const last = i === entries.length - 1 ? 'border-bottom:none' : '';
+    return `<div class="row" style="${last}"><span><b>${escapeHtml(e.id)}</b> — ${escapeHtml(e.title)}<br><small class="muted">${escapeHtml(e.date || '')} · ${escapeHtml(e.status_detail || e.status || '')}</small></span><span class="status-pill ${cls}">${escapeHtml((e.status || 'UNKNOWN').toUpperCase())}</span></div>`;
+  }).join('');
+}
+
+function renderDecisions(decisionsD) {
+  const bodyEl = document.getElementById('findings-body');
+  const noteEl = document.getElementById('findings-note');
+  if (!decisionsD || !decisionsD.available) {
+    noteEl.textContent = '(agent unavailable — run refresh_agents.sh)';
+    bodyEl.innerHTML = '<div class="muted">No decisions_state.json yet. Run scripts/refresh_agents.sh (adds agents.decision_log) to populate this panel from 99_decisions/DECISION_LOG.md.</div>';
+    return;
+  }
+  const entries = decisionsD.entries || [];
+  noteEl.textContent = decisionsD.summary || `${entries.length} entries`;
+  bodyEl.innerHTML = decisionRows(entries);
+}
+
 async function loadAll() {
   const d = await loadAggregate();
   if (!d) return;
@@ -417,6 +443,7 @@ async function loadAll() {
   renderGuardian(d.guardian);
   renderSupervisorSummary(d.supervisor);
   renderSupervisor(d.supervisor);
+  renderDecisions(d.decisions);
 
   renderEval5(eval5);
   renderCompetitive(eval5);
@@ -424,5 +451,52 @@ async function loadAll() {
   renderTimeline(eval5, historyResp);
 }
 
+function switchTab(name) {
+  ['overview', 'budget'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+    document.getElementById(`tab-btn-${t}`).classList.toggle('active', t === name);
+  });
+}
+
+function renderBudget(d) {
+  const bodyEl = document.getElementById('budget-body');
+  const noteEl = document.getElementById('budget-note');
+  const totalEl = document.getElementById('budget-total');
+  if (!d || !d.available) {
+    noteEl.textContent = '(agent unavailable — run refresh_agents.sh)';
+    bodyEl.innerHTML = '<div class="muted">No budget_state.json yet. Run scripts/refresh_agents.sh (adds agents.budget_reader) to populate this tab from each WP README.md.</div>';
+    return;
+  }
+  noteEl.textContent = d.summary || 'live';
+  const rows = d.rows || [];
+  const fmtEur = v => v == null ? '—' : `€${Number(v).toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+  let html = '<table class="budget-table"><thead><tr><th>WP</th><th>Lead</th><th style="text-align:right">PM</th><th style="text-align:right">Grand total</th><th>Status</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    if (!r.available) {
+      html += `<tr><td>${escapeHtml(r.wp)}</td><td colspan="4" class="muted">unavailable — ${escapeHtml(r.reason || '')}</td></tr>`;
+      return;
+    }
+    const draftFlag = r.grand_total_is_draft ? ' <span class="status-pill pill-yellow" title="Old/superseded task-set figure, not current">DRAFT/OLD</span>' : '';
+    const statusPill = r.status
+      ? `<span class="status-pill ${r.status.includes('NOT') ? 'pill-yellow' : 'pill-green'}">${escapeHtml(r.status)}</span>`
+      : '<span class="muted">—</span>';
+    html += `<tr><td><b>${escapeHtml(r.wp)}</b></td><td>${escapeHtml(r.lead)}</td><td class="num">${r.pm ?? '—'}</td><td class="num">${fmtEur(r.grand_total_eur)}${draftFlag}</td><td>${statusPill}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  bodyEl.innerHTML = html;
+  totalEl.textContent = `Total: ${d.total_pm ?? '—'} PM · ${fmtEur(d.total_eur)} (sum of current per-WP README figures, not consortium-reconciled; WP2 figure marked DRAFT/OLD is excluded from being treated as final)`;
+}
+
+async function loadBudget() {
+  try {
+    const d = await fetch('/api/v1/budget').then(r => r.json());
+    renderBudget(d);
+  } catch (e) {
+    document.getElementById('budget-note').textContent = '(error)';
+  }
+}
+
 loadAll();
+loadBudget();
 setInterval(loadAll, 30000);
+setInterval(loadBudget, 30000);
