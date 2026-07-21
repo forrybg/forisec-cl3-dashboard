@@ -391,6 +391,9 @@ function renderCompetitive(d) {
     noteEl.textContent = 'AGENT_UNAVAILABLE';
     setText('competitive-score', '—');
     setText('competitive-label', '—');
+    setText('competitive-score-big', '—');
+    setText('competitive-label-big', '—');
+    document.getElementById('competitive-gauge-fill').style.width = '0%';
     bodyEl.innerHTML = `<div class="muted">${escapeHtml((d && d.reason) || 'No run recorded yet.')}</div>`;
     return;
   }
@@ -398,6 +401,16 @@ function renderCompetitive(d) {
   noteEl.textContent = d.freshness || 'UNKNOWN';
   setText('competitive-score', `${ca.score ?? '—'} / 5`);
   setText('competitive-label', ca.label || '—');
+
+  // Hero number + gauge -- mirrors the old V3 panel's large score readout
+  // and 0-5 scale bar (WEAK / COMPETITIVE BUT WEAK / STRONG / TOP TIER
+  // thresholds match _competitive_assessment()'s label boundaries exactly:
+  // <1.5 NOT COMPETITIVE, <2.5 WEAK, <3.5 COMPETITIVE BUT WEAK, <4.25
+  // STRONG, else TOP TIER).
+  setText('competitive-score-big', ca.score ?? '—');
+  setText('competitive-label-big', ca.label || '—');
+  const pctOf5 = ca.score != null ? Math.max(0, Math.min(100, (ca.score / 5) * 100)) : 0;
+  document.getElementById('competitive-gauge-fill').style.width = `${pctOf5}%`;
 
   const components = ca.components || {};
   bodyEl.innerHTML = Object.entries(components).map(([name, c]) => {

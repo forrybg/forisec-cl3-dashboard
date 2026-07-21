@@ -200,3 +200,20 @@ def test_dashboard_js_renders_service_chain_and_panel(fake_repo, state_dir):
     assert "renderServicesPanel" in js
     assert "/api/v1/services" in js
     assert "renderImprovementLoop(eval5, services)" in js
+
+
+def test_dashboard_html_includes_competitive_hero_and_gauge(fake_repo, state_dir):
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    html = client.get("/").text
+    assert 'id="competitive-score-big"' in html
+    assert 'id="competitive-label-big"' in html
+    assert 'id="competitive-gauge-fill"' in html
+    assert 'competitive-gauge-ticks' in html
+
+
+def test_dashboard_js_renders_competitive_hero_and_gauge(fake_repo, state_dir):
+    js = (PROJECT_ROOT / "app" / "static" / "dashboard.js").read_text()
+    assert "competitive-score-big" in js
+    assert "competitive-gauge-fill" in js
+    assert "pctOf5" in js

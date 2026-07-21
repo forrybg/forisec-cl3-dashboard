@@ -65,6 +65,16 @@ details#docs-details summary:hover{color:var(--accent)}
 .evidence-live-table td{padding:6px 10px;border-bottom:1px solid var(--border)}
 .subsection-label{font-size:12px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
 
+/* Agent 5 — competitive score hero + gauge */
+.competitive-hero{display:flex;align-items:baseline;gap:6px;margin-bottom:4px}
+.competitive-hero .score-big{font-size:40px;font-weight:800;line-height:1;color:var(--orange)}
+.competitive-hero .score-max{font-size:16px;color:var(--muted);font-weight:600}
+.competitive-label-big{font-size:14px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.02em;margin-bottom:14px}
+.competitive-gauge{position:relative;margin:8px 0 22px 0}
+.competitive-gauge-track{background:#1c2230;border-radius:6px;height:8px;overflow:hidden}
+.competitive-gauge-fill{height:100%;background:var(--orange);border-radius:6px}
+.competitive-gauge-ticks{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+
 /* Agent 5 — competitive component progress bars */
 .component-row{margin-bottom:12px}
 .component-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
