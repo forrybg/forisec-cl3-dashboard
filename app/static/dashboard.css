@@ -45,9 +45,25 @@ details#docs-details summary:hover{color:var(--accent)}
 @media(max-width:900px){.grid-2{grid-template-columns:1fr}.agg-grid{grid-template-columns:1fr 1fr}}
 
 /* Agent 5 — pipeline row */
-.pipeline-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
-.pipeline-step{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text)}
+.pipeline-row{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;color:var(--muted)}
+.pipeline-step{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text);white-space:nowrap}
 .pipeline-step.active{border-color:var(--accent);color:var(--accent)}
+.pipeline-step.chain-ok{border-color:#1f4a2e;color:var(--green)}
+.pipeline-step.chain-warn{border-color:#4a3d1e;color:var(--yellow)}
+.pipeline-step.chain-idle{border-color:var(--border);color:var(--muted)}
+.pipeline-arrow{color:var(--muted)}
+.services-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.service-table{width:100%;border-collapse:collapse;font-size:13px}
+.service-table td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.service-table tr:last-child td{border-bottom:none}
+.service-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.service-dot.up{background:var(--green)}
+.service-dot.degraded{background:var(--yellow)}
+.service-dot.down{background:var(--red)}
+.evidence-live-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+.evidence-live-table th{text-align:left;font-size:11px;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border)}
+.evidence-live-table td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.subsection-label{font-size:12px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
 
 /* Agent 5 — competitive component progress bars */
 .component-row{margin-bottom:12px}

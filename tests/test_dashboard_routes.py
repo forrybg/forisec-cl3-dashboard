@@ -43,6 +43,7 @@ def test_health_returns_200(fake_repo, state_dir):
     "/api/v1/summary", "/api/v1/docs", "/api/v1/evaluation",
     "/api/v1/guardian", "/api/v1/supervisor",
     "/api/v1/evidence", "/api/v1/evidence/coverage", "/api/v1/evidence/contradictions",
+    "/api/v1/services",
 ])
 def test_api_v1_routes_return_200(fake_repo, state_dir, route):
     app = _make_app(fake_repo, state_dir)
@@ -142,3 +143,60 @@ def test_critical_guardian_finding_visible_in_summary(fake_repo, state_dir):
     summary = client.get("/api/v1/summary").json()
     assert summary["critical_finding_count"] == 1
     assert summary["overall_status"] in ("CRITICAL",)
+
+
+def test_services_api_reflects_written_state(fake_repo, state_dir):
+    (state_dir / "services_status.json").write_text(json.dumps({
+        "schema_version": "1.0", "agent_id": "service_monitor", "repo_commit": "x",
+        "run_timestamp": "2026-07-21T00:00:00", "status": "completed",
+        "services": [
+            {"name": "Embeddings", "port": 8101, "status": "UP"},
+            {"name": "Reranker", "port": 8102, "status": "UP", "device": "cuda"},
+            {"name": "Search API", "port": 8103, "status": "UP"},
+        ],
+        "cuda": True,
+        "index": {"available": True, "indexed_files": None, "chunks": 2504,
+                   "last_indexed": None, "by_category": {"budget": 144}},
+        "evidence_items": [{"weakness_id": "weakness-E1", "criterion": "E1", "title": "t",
+                             "query": "t", "evidence_count": 1, "best_score": 0.6,
+                             "status": "PENDING_REVIEW"}],
+        "fix_packs_summary": {"count": 1, "all_pending_review": True},
+        "chain": [{"label": "Agent 5 weakness", "state": "ok"}],
+        "proposal_intelligence_snapshot": {"available": True, "diagnostic_score": 6.5,
+                                            "overall_status": "BLOCKED"},
+    }))
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    resp = client.get("/api/v1/services")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["cuda"] is True
+    assert data["services"][2]["port"] == 8103
+    assert data["evidence_items"][0]["status"] == "PENDING_REVIEW"
+
+
+def test_services_api_unavailable_when_no_state(fake_repo, state_dir):
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    data = client.get("/api/v1/services").json()
+    assert data["available"] is False
+    assert data["status"] == "AGENT_UNAVAILABLE"
+
+
+def test_dashboard_html_includes_services_panel_markup(fake_repo, state_dir):
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    html = client.get("/").text
+    assert 'id="services-table"' in html
+    assert 'id="services-index"' in html
+    assert 'id="live-evidence-table"' in html
+    assert 'id="pipeline-row"' in html
+
+
+def test_dashboard_js_renders_service_chain_and_panel(fake_repo, state_dir):
+    js = (PROJECT_ROOT / "app" / "static" / "dashboard.js").read_text()
+    assert "renderServiceChain" in js
+    assert "renderServicesPanel" in js
+    assert "/api/v1/services" in js
+    assert "renderImprovementLoop(eval5, services)" in js

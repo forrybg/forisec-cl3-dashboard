@@ -14,6 +14,11 @@ SOURCE_DIRS = ["app", "agents", "pipeline"]
 # default, or a read target.
 ALLOWLIST = {
     "app/config.py": {"foritech-os"},  # _OLD_SYSTEM_ROOT defensive check only
+    # Explanatory docstring only (scope-exception rationale for its
+    # read-only HTTP health/search calls to sibling loopback services).
+    # No import, no file path, no fallback default -- verified by the
+    # AST import-scan test below, which still enforces the real rule.
+    "agents/service_monitor.py": {"foritech-os"},
 }
 
 FORBIDDEN_SUBSTRINGS = [
@@ -34,6 +39,12 @@ ALLOWED_TOP_LEVEL_IMPORTS = {
     "app", "agents", "pipeline", "fastapi", "starlette", "jinja2", "jsonschema",
     "json", "os", "sys", "re", "subprocess", "tempfile", "pathlib",
     "datetime", "typing",
+    # urllib (stdlib) is required by agents/service_monitor.py's read-only
+    # HTTP health/search calls to the sibling foritech-* GPU/search
+    # services (loopback ports 8101-8103). This is a plain stdlib HTTP
+    # client, never a foritech-os import -- see that file's module
+    # docstring for the full scope-exception rationale.
+    "urllib",
 }
 
 

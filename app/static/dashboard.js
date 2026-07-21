@@ -412,9 +412,81 @@ function renderCompetitive(d) {
 }
 
 // ── Agent 5 — Improvement Loop ──────────────────────────────────────────
-function renderImprovementLoop(d) {
+// Services/chain/live-evidence data comes from agents/service_monitor.py's
+// services_status.json (read-only HTTP polls of the sibling foritech-*
+// GPU/search services on loopback ports 8101-8103, run on the existing
+// agent timer -- this dashboard process itself never calls those ports).
+const CHAIN_STATE_CLASS = {ok: 'chain-ok', warn: 'chain-warn', idle: 'chain-idle', err: 'chain-warn'};
+const CHAIN_STATE_ICON = {ok: '✅', warn: '🟡', idle: '⚪', err: '🔴'};
+
+function renderServiceChain(chain) {
+  const row = document.getElementById('pipeline-row');
+  if (!chain || !chain.length) {
+    row.innerHTML = ['Weakness','Evidence Pack','Fix Pack','PENDING_REVIEW','Human approval','Apply','Re-evaluate']
+      .map(l => `<span class="pipeline-step chain-idle">${l}</span>`).join('<span class="pipeline-arrow">→</span>');
+    return;
+  }
+  row.innerHTML = chain.map((c, i) => {
+    const cls = CHAIN_STATE_CLASS[c.state] || 'chain-idle';
+    const icon = CHAIN_STATE_ICON[c.state] || '⚪';
+    const arrow = i < chain.length - 1 ? '<span class="pipeline-arrow">→</span>' : '';
+    return `<span class="pipeline-step ${cls}">${icon} ${escapeHtml(c.label)}</span>${arrow}`;
+  }).join('');
+}
+
+function renderServicesPanel(svc) {
+  const tbody = document.querySelector('#services-table tbody');
+  const idxEl = document.getElementById('services-index');
+  const tsEl = document.getElementById('improvement-ts');
+
+  if (!svc || !svc.available) {
+    tbody.innerHTML = `<tr><td colspan="3" class="muted">No state yet. Run: python3 -m agents.service_monitor</td></tr>`;
+    idxEl.innerHTML = '<span class="muted">—</span>';
+    tsEl.textContent = '';
+    renderServiceChain(null);
+    return;
+  }
+
+  tsEl.textContent = svc.run_timestamp ? `updated ${svc.run_timestamp}` : '';
+
+  const dotClass = {UP: 'up', DEGRADED: 'degraded', DOWN: 'down'};
+  tbody.innerHTML = (svc.services || []).map(s => `
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td class="muted">:${s.port}</td>
+      <td><span class="service-dot ${dotClass[s.status] || 'down'}"></span>${escapeHtml(s.status)}</td>
+    </tr>`).join('');
+
+  const idx = svc.index || {};
+  const cuda = svc.cuda === true ? '🟢 yes' : (svc.cuda === false ? '🔴 no' : '—');
+  idxEl.innerHTML = `
+    Indexed files: <b>${idx.indexed_files ?? '—'}</b><br>
+    Chunks: <b>${idx.chunks ?? '—'}</b><br>
+    CUDA: ${cuda}<br>
+    Categories: <span class="muted">${Object.keys(idx.by_category || {}).length || '—'}</span>`;
+
+  renderServiceChain(svc.chain);
+
+  const evTbody = document.querySelector('#live-evidence-table tbody');
+  const items = svc.evidence_items || [];
+  const stStyle = {PENDING_REVIEW: 'pill-green', WEAK_EVIDENCE: 'pill-yellow', NEEDS_SOURCE_DOC: 'pill-red'};
+  evTbody.innerHTML = items.length
+    ? items.map(it => `
+        <tr>
+          <td>${escapeHtml(it.title || it.weakness_id || '')}</td>
+          <td style="text-align:center">${it.evidence_count} docs</td>
+          <td style="text-align:center" class="muted">${it.best_score ?? '—'}</td>
+          <td><span class="status-pill ${stStyle[it.status] || 'pill-grey'}">${escapeHtml(it.status)}</span></td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" class="muted">No live evidence pack yet.</td></tr>`;
+}
+
+function renderImprovementLoop(d, svc) {
   const noteEl = document.getElementById('improvement-note');
   const bodyEl = document.getElementById('improvement-body');
+
+  renderServicesPanel(svc);
+
   if (!d || !d.available) {
     noteEl.textContent = 'AGENT_UNAVAILABLE';
     ['improvement-weakness-count','improvement-evidence-count','improvement-fixpack-count'].forEach(id => setText(id, '—'));
@@ -635,7 +707,13 @@ async function loadAll() {
 
   renderEval5(eval5);
   renderCompetitive(eval5);
-  renderImprovementLoop(eval5);
+
+  let services = {available: false};
+  try {
+    services = await fetch('/api/v1/services').then(r => r.json());
+  } catch (e) { /* keep default unavailable */ }
+  renderImprovementLoop(eval5, services);
+
   renderTimeline(eval5, historyResp);
 }
 

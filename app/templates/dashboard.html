@@ -143,21 +143,35 @@
 
   <!-- Agent 5 — Improvement Loop -->
   <div class="card" id="improvement-card">
-    <div class="section-title">🔁 Improvement Loop <span class="note" id="improvement-note">loading…</span></div>
-    <div class="pipeline-row" id="pipeline-row">
-      <span class="pipeline-step">Weakness</span>→
-      <span class="pipeline-step">Evidence Pack</span>→
-      <span class="pipeline-step">Fix Pack</span>→
-      <span class="pipeline-step">PENDING_REVIEW</span>→
-      <span class="pipeline-step">Human approval</span>→
-      <span class="pipeline-step">Apply</span>→
-      <span class="pipeline-step">Re-evaluate</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
+      <div class="section-title" style="margin-bottom:12px;border-bottom:none;padding-bottom:0">🔁 Improvement Loop <span class="note" id="improvement-note">loading…</span></div>
+      <span id="improvement-ts" class="note"></span>
     </div>
+    <div class="pipeline-row" id="pipeline-row"></div>
+
     <div class="agg-grid" style="margin:16px 0">
       <div><div class="label">Weaknesses</div><div id="improvement-weakness-count" class="value">—</div></div>
       <div><div class="label">Evidence packs</div><div id="improvement-evidence-count" class="value">—</div></div>
       <div><div class="label">Fix packs</div><div id="improvement-fixpack-count" class="value">—</div></div>
     </div>
+
+    <div class="services-grid">
+      <div>
+        <div class="subsection-label">GPU / Search services</div>
+        <table class="service-table" id="services-table"><tbody></tbody></table>
+      </div>
+      <div>
+        <div class="subsection-label">Search index</div>
+        <div id="services-index" class="muted">Loading…</div>
+      </div>
+    </div>
+
+    <div class="subsection-label">Live search evidence per weakness</div>
+    <table class="evidence-live-table" id="live-evidence-table">
+      <thead><tr><th>Weakness</th><th style="text-align:center">Evidence</th><th style="text-align:center">Best score</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
     <div id="improvement-body"><div class="muted">Loading improvement loop…</div></div>
   </div>
 

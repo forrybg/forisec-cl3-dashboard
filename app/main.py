@@ -168,10 +168,19 @@ def api_evidence_contradictions():
             "cross_document_checks": evidence.get("cross_document_checks", [])}
 
 
+@app.get("/api/v1/services")
+def api_services():
+    """Read-only: whatever agents/service_monitor.py last wrote to
+    services_status.json. This endpoint never calls foritech-* itself --
+    only agents/service_monitor.py (run via scripts/refresh_agents.sh)
+    does that, on the timer's existing cadence."""
+    return read_all_state(STATE_DIR, REPO_ROOT)["services"]
+
+
 # Bumped whenever a static asset (dashboard.css / dashboard.js) changes,
 # so a browser tab left open across a deploy is forced to refetch instead
 # of silently rendering with stale cached CSS/JS.
-ASSET_VERSION = "2026-07-21-2"
+ASSET_VERSION = "2026-07-21-3"
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -22,7 +22,11 @@
 #   6. evidence_assembler     -- normalizes all of the above into one bundle
 #                                 (read-only pipeline component, not a 6th agent)
 #   7. proposal_intelligence  -- diagnostic score (unchanged in this step)
-#   8. decision_log           -- unaffected by this step, kept last
+#   8. service_monitor        -- read-only HTTP status of sibling GPU/search
+#                                 services (8101-8103) + live search evidence
+#                                 for open weaknesses; never blocks the
+#                                 pipeline if those services are down
+#   9. decision_log           -- unaffected by this step, kept last
 #
 # Requires FORISEC_REPO_ROOT and FORISEC_STATE_DIR to already be set
 # in the environment (e.g. via systemd EnvironmentFile= or a sourced
@@ -60,6 +64,9 @@ echo "[refresh_agents] evidence_assembler..."
 
 echo "[refresh_agents] proposal_intelligence..."
 "$PYTHON" -m agents.proposal_intelligence
+
+echo "[refresh_agents] service_monitor..."
+"$PYTHON" -m agents.service_monitor
 
 echo "[refresh_agents] decision_log..."
 "$PYTHON" -m agents.decision_log
