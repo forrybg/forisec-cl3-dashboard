@@ -31,8 +31,34 @@
 #                                 (project_context_state.json); reads the
 #                                 state files written by steps 1-9 plus a
 #                                 fixed set of canonical proposal documents
-#                                 and safe git metadata; always the LAST
-#                                 project-context producer in this script.
+#                                 and safe git metadata.
+#  11. context.index_builder  -- PHASE 2 project-scoped SQLite context.db
+#                                 (FTS5 + optional semantic embeddings via
+#                                 the stateless :8101 worker); atomic clean
+#                                 rebuild into context.db.tmp-<generation>
+#                                 then os.replace(); never touches the old
+#                                 foritech-os memory.db/index.db.
+#  12. context.generation_marker -- validates that project_context_state.json
+#                                 (step 10) and context.db (step 11) are
+#                                 schema-valid AND bound to the SAME proposal
+#                                 repo commit (no mixed generation), then
+#                                 writes context_generation_complete.json.
+#                                 Always the LAST project-context producer
+#                                 in this script.
+#
+# FAILURE CONTRACT FOR STEPS 10-12: a non-zero exit from context_builder,
+# context.index_builder, or context.generation_marker must fail this whole
+# script (set -e already enforces this). Because each of the three writes
+# its own output atomically and only replaces the previous valid file on
+# success, a failure at step 10 or 11 leaves the last good
+# project_context_state.json / context.db / context_generation_complete.json
+# untouched and readable -- the dashboard's /health/ready endpoint will
+# report readiness as STALE/DEGRADED based on that leftover marker's
+# repo_commit rather than silently serving a half-built generation as
+# complete. This script itself never "publishes" a generation by any
+# separate step; publication is simply "the marker file says ok:true and
+# matches the live repo commit," which only happens if 10, 11, and 12 all
+# succeeded in the same run.
 #
 # NOTE ON ATOMICITY: each step's own state file is written atomically
 # (temp file + os.replace, see agents/common.py::atomic_write_json).
@@ -86,5 +112,11 @@ echo "[refresh_agents] decision_log..."
 
 echo "[refresh_agents] context_builder..."
 "$PYTHON" -m pipeline.context_builder
+
+echo "[refresh_agents] context.index_builder..."
+"$PYTHON" -m context.index_builder
+
+echo "[refresh_agents] context.generation_marker..."
+"$PYTHON" -m context.generation_marker
 
 echo "[refresh_agents] all agents + evidence pipeline completed."

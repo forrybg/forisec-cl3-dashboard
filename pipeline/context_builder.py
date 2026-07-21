@@ -70,7 +70,7 @@ from agents.docs_controller import load_manifest
 
 STATE_FILENAME = "project_context_state.json"
 SCHEMA_VERSION = "1.0"
-CONTEXT_MODEL_VERSION = "1.0"
+CONTEXT_MODEL_VERSION = "2.0"
 
 # Consumed state files -- filenames only, never imported from agents/
 # (this module reads their JSON output, it does not run them).
@@ -85,6 +85,30 @@ CONSUMED_STATE_FILES = {
 
 SYSTEM_INDEX_REL_PATH = "00_baseline/FORITECH_SYSTEM_INDEX.md"
 DECISION_LOG_REL_PATH = "99_decisions/DECISION_LOG.md"
+DELIVERABLE_REGISTER_REL_PATH = "02_registers/DELIVERABLE_REGISTER.md"
+
+# PHASE 2 -- fixed, explicit WP1-WP6 mapping (never derived from a
+# directory scan). One entry per real Work Package document.
+WP_DOCUMENT_MAPPING = [
+    ("WP1", "01_work_packages/WP1_PROJECT_MANAGEMENT.md"),
+    ("WP2", "01_work_packages/WP2_PQC_PLATFORM.md"),
+    ("WP3", "01_work_packages/WP3_EMBEDDED_PROVENANCE.md"),
+    ("WP4", "01_work_packages/WP4_FPGA_HARDWARE_SECURITY.md"),
+    ("WP5", "01_work_packages/WP5_OPERATIONAL_PILOT.md"),
+    ("WP6", "01_work_packages/WP6_EXPLOITATION_STANDARDISATION.md"),
+]
+
+WP_TITLE_RE = re.compile(r"^#\s+(WP\d+.*)$", re.MULTILINE)
+WP_LEAD_RE = re.compile(r"^\*\*Lead:\*\*\s*(.+?)\s*$", re.MULTILINE)
+WP_STATUS_RE = re.compile(r"^\*\*Status:\*\*\s*(.+?)\s*$", re.MULTILINE)
+
+
+def _wp_task_heading_re(wp_number: str) -> re.Pattern:
+    return re.compile(rf"^## T{wp_number}\.\d+", re.MULTILINE)
+
+
+def _wp_other_reference_re(wp_number: str) -> re.Pattern:
+    return re.compile("\\bWP(?!" + re.escape(wp_number) + "\\b)([1-6])\\b")
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$", re.MULTILINE)
 
@@ -99,7 +123,7 @@ QUESTION_HEADINGS = ("### Question", "### Decision")
 CONCLUSION_HEADINGS = ("### Conclusion", "### Finding", "### Decision")
 FOLLOWUP_HEADINGS = ("### Follow-up action", "### Follow-up")
 
-SUMMARY_MAX_CHARS = 180
+SUMMARY_MAX_CHARS = 110  # PHASE 2: lowered from 180 after WP1-WP6 mapping pushed bootstrap over 6000 tokens; keeps hard cap with margin
 
 MAX_SERVICE_COMMITS = 4
 MAX_PROPOSAL_COMMITS = 3
@@ -262,19 +286,77 @@ def _load_state(state_dir: Path, filename: str) -> tuple[dict | None, str]:
 
 # ── deterministic derived sections ──────────────────────────────────────
 
-def _work_package_summary(evidence: dict | None) -> list[dict]:
-    if not evidence:
-        return []
+def _parse_deliverable_register_for_wp(text: str, wp_number: str) -> list[str]:
+    """Deterministic Markdown table-row scan: one row per deliverable,
+    `| D{n}.x | Title | Lead | T{n}.y[, ...] | ... |`. Only rows whose
+    deliverable code's WP number matches are kept. Never invents a
+    deliverable that isn't a literal table row in the real register."""
+    row_re = re.compile(r"^\|\s*(D" + re.escape(wp_number) + r"\.\d+)\s*\|", re.MULTILINE)
+    return list(dict.fromkeys(m.group(1) for m in row_re.finditer(text)))
+
+
+def _first_wp_section_paragraph(text: str) -> str | None:
+    """First paragraph under the WP document's own '## 1. ...' role/
+    scope section -- a deterministic heading-anchored extraction, never
+    a free-form summary."""
+    heading_re = re.compile(r"^## 1\..*$", re.MULTILINE)
+    m = heading_re.search(text)
+    if not m:
+        return None
+    return _first_paragraph(text, m.end())
+
+
+def _work_package_summary_v2(repo_root: Path) -> list[dict]:
+    """Real WP1-WP6 breakdown (fixes the PHASE 1 limitation, which
+    mistakenly used the six evaluation criteria E1/E2/I1/I2I3/IM1/IM2IM3
+    as a stand-in for work packages). Deterministic heading/table
+    parsing only -- UNKNOWN wherever a fact cannot be safely extracted,
+    never a generated guess."""
+    deliverable_text = None
+    deliverable_path = repo_root / DELIVERABLE_REGISTER_REL_PATH
+    if deliverable_path.exists():
+        try:
+            deliverable_text = deliverable_path.read_text(encoding="utf-8")
+        except Exception:
+            deliverable_text = None
+
     out = []
-    for c in evidence.get("criterion_evidence", []):
-        out.append({
-            "criterion_id": c.get("criterion_id"),
-            "coverage_ratio": c.get("coverage_ratio"),
-            "evidence_quality": c.get("evidence_quality"),
-            "result": c.get("result"),
-            "missing_evidence_count": len(c.get("missing_evidence", [])),
-            "source_path": CONSUMED_STATE_FILES["evidence"],
+    for wp_id, rel_path in WP_DOCUMENT_MAPPING:
+        wp_number = wp_id[2:]
+        entry = {
+            "wp_id": wp_id, "title": "UNKNOWN", "lead": "UNKNOWN",
+            "purpose_summary": None, "task_count": 0,
+            "deliverable_references": [], "dependencies": [],
+            "status": "UNKNOWN", "source_path": rel_path, "available": False,
+        }
+        wp_path = repo_root / rel_path
+        if not wp_path.exists():
+            out.append(entry)
+            continue
+        try:
+            text = wp_path.read_text(encoding="utf-8")
+        except Exception:
+            out.append(entry)
+            continue
+
+        entry["available"] = True
+        title_m = WP_TITLE_RE.search(text)
+        if title_m:
+            entry["title"] = title_m.group(1).strip()
+        lead_m = WP_LEAD_RE.search(text)
+        if lead_m:
+            entry["lead"] = lead_m.group(1).strip()
+        status_m = WP_STATUS_RE.search(text)
+        if status_m:
+            entry["status"] = status_m.group(1).strip()
+        entry["purpose_summary"] = _first_wp_section_paragraph(text)
+        entry["task_count"] = len(_wp_task_heading_re(wp_number).findall(text))
+        entry["dependencies"] = sorted({
+            f"WP{m.group(1)}" for m in _wp_other_reference_re(wp_number).finditer(text)
         })
+        if deliverable_text:
+            entry["deliverable_references"] = _parse_deliverable_register_for_wp(deliverable_text, wp_number)
+        out.append(entry)
     return out
 
 
@@ -514,15 +596,17 @@ def run(repo_root: Path, state_dir: Path, service_repo_root: Path | None = None)
     evaluation_summary = _evaluation_summary(proposal_intelligence)
     critical = _critical_findings(guardian, evidence)
 
-    proposal_commits = [
+    proposal_completed_work = [
         {**c, "category": _classify_commit_subject(c["subject"]), "source": "forisec-cl3-2026 git log", "repo": "proposal"}
         for c in _git_recent_commits(repo_root, MAX_PROPOSAL_COMMITS)
     ]
-    service_commits = [
+    service_completed_work = [
         {**c, "category": _classify_commit_subject(c["subject"]), "source": "forisec-cl3-dashboard git log", "repo": "service"}
         for c in _git_recent_commits(service_repo_root, MAX_SERVICE_COMMITS)
     ]
-    completed_work = service_commits + proposal_commits
+    # Backwards-compatible aggregate (PHASE 1 shape) -- PHASE 2 consumers
+    # should prefer the two split fields above.
+    completed_work = service_completed_work + proposal_completed_work
 
     freshness = _determine_freshness(manifest_ok, live_repo_commit, producers)
 
@@ -540,7 +624,7 @@ def run(repo_root: Path, state_dir: Path, service_repo_root: Path | None = None)
         "canonical_sources": ["config/canonical_documents.json"],
         "architecture_summary": [SYSTEM_INDEX_REL_PATH],
         "current_state": list(CONSUMED_STATE_FILES.values()),
-        "work_package_summary": [CONSUMED_STATE_FILES["evidence"]],
+        "work_package_summary": [rel_path for _wp_id, rel_path in WP_DOCUMENT_MAPPING] + [DELIVERABLE_REGISTER_REL_PATH],
         "partner_summary": [CONSUMED_STATE_FILES["evidence"]],
         "budget_summary": [CONSUMED_STATE_FILES["budget"]],
         "evidence_summary": [CONSUMED_STATE_FILES["evidence"]],
@@ -550,6 +634,8 @@ def run(repo_root: Path, state_dir: Path, service_repo_root: Path | None = None)
         "recent_decisions": [DECISION_LOG_REL_PATH],
         "superseded_decisions": [DECISION_LOG_REL_PATH],
         "completed_work": ["forisec-cl3-dashboard git log", "forisec-cl3-2026 git log"],
+        "proposal_completed_work": ["forisec-cl3-2026 git log"],
+        "service_completed_work": ["forisec-cl3-dashboard git log"],
     }
 
     bundle = {
@@ -566,7 +652,7 @@ def run(repo_root: Path, state_dir: Path, service_repo_root: Path | None = None)
         "canonical_sources": canonical_sources,
         "architecture_summary": architecture_summary,
         "current_state": _current_state(producers, live_repo_commit, supervisor),
-        "work_package_summary": _work_package_summary(evidence),
+        "work_package_summary": _work_package_summary_v2(repo_root),
         "partner_summary": _partner_summary(evidence),
         "budget_summary": _budget_summary(budget),
         "evidence_summary": _evidence_summary(evidence),
@@ -575,6 +661,8 @@ def run(repo_root: Path, state_dir: Path, service_repo_root: Path | None = None)
         "open_decisions": open_decisions,
         "recent_decisions": recent_decisions,
         "completed_work": completed_work,
+        "proposal_completed_work": proposal_completed_work,
+        "service_completed_work": service_completed_work,
         "superseded_decisions": superseded_decisions,
         "constraints": CONSTRAINTS,
         "forbidden_changes": FORBIDDEN_CHANGES,

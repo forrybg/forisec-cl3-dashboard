@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIRS = ["app", "agents", "pipeline"]
+SOURCE_DIRS = ["app", "agents", "pipeline", "context"]
 
 # Per-file exceptions: a literal reference is allowed ONLY where it is
 # used purely as a defensive negative-check constant (e.g. "state dir
@@ -23,6 +23,11 @@ ALLOWLIST = {
     # what this PHASE 1 context builder does NOT do. No import, no file
     # path -- verified by the AST import-scan test below.
     "pipeline/context_builder.py": {"foritech-os"},
+    # Same pattern -- PHASE 2 module docstrings explicitly document what
+    # they do NOT read (old foritech-os memory.db/index.db). No import,
+    # no file path -- verified by the AST import-scan test below.
+    "context/index_builder.py": {"foritech-os"},
+    "context/retrieval.py": {"foritech-os"},
 }
 
 FORBIDDEN_SUBSTRINGS = [
@@ -52,6 +57,11 @@ ALLOWED_TOP_LEVEL_IMPORTS = {
     # __future__ (postponed annotations) and uuid (stdlib, for
     # generation_id) are required by pipeline/context_builder.py.
     "__future__", "uuid",
+    # PHASE 2 context system (context/index_builder.py, context/retrieval.py):
+    # sqlite3 for the new, separate context.db; hashlib/struct for
+    # source/text hashing and embedding (de)serialization; "context" is
+    # this project's own new top-level package.
+    "context", "sqlite3", "hashlib", "struct",
 }
 
 

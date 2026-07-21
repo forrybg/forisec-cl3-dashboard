@@ -28,6 +28,8 @@
     "open_decisions",
     "recent_decisions",
     "completed_work",
+    "proposal_completed_work",
+    "service_completed_work",
     "superseded_decisions",
     "constraints",
     "forbidden_changes",
@@ -185,6 +187,14 @@
     "superseded_decisions": {
       "type": "array",
       "items": {"$ref": "#/definitions/decision"}
+    },
+    "proposal_completed_work": {
+      "type": "array",
+      "description": "Same shape as completed_work, filtered to the proposal repository's own commits."
+    },
+    "service_completed_work": {
+      "type": "array",
+      "description": "Same shape as completed_work, filtered to this dashboard service's own commits."
     },
     "constraints": {
       "type": "array",

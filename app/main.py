@@ -20,6 +20,8 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import load_config_or_exit
 from app.state_reader import read_all_state, get_live_repo_commit, read_history, read_context_bootstrap
+from context import retrieval as context_retrieval
+from context.retrieval import RetrievalError, SECTION_ALLOWLIST
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -81,7 +83,64 @@ def _compute_summary() -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "repo_root": str(REPO_ROOT), "state_dir": str(STATE_DIR)}
+    """Legacy compatibility endpoint. Never exposes an absolute
+    filesystem path (repo_root/state_dir were removed -- use
+    /health/live and /health/ready for real health/readiness)."""
+    return {"status": "ok"}
+
+
+@app.get("/health/live")
+def health_live():
+    """True as soon as the application process is up and able to
+    handle a request. Says nothing about whether the context bundle or
+    index is valid -- see /health/ready for that."""
+    return {"status": "ok", "live": True}
+
+
+@app.get("/health/ready")
+def health_ready():
+    """Readiness = bootstrap available & schema-valid, context.db
+    available & schema-valid, both bound to the SAME proposal repo
+    commit (no mixed generation), and neither is STALE/UNAVAILABLE.
+    Read-only: never builds the bundle or the index, never writes."""
+    reasons = []
+
+    bootstrap = read_context_bootstrap(STATE_DIR, REPO_ROOT)
+    bootstrap_ok = bool(bootstrap.get("available")) and bootstrap.get("freshness") == "FRESH"
+    if not bootstrap.get("available"):
+        reasons.append(f"bootstrap unavailable: {bootstrap.get('reason')}")
+    elif bootstrap.get("freshness") != "FRESH":
+        reasons.append(f"bootstrap freshness={bootstrap.get('freshness')}")
+
+    db_meta = context_retrieval._read_db_meta(STATE_DIR)
+    db_ok = db_meta is not None
+    if not db_ok:
+        reasons.append("context.db unavailable or invalid.")
+
+    mixed_generation = False
+    if bootstrap.get("available") and db_meta is not None:
+        if bootstrap.get("repo_commit") != db_meta.get("proposal_repo_commit"):
+            mixed_generation = True
+            reasons.append(
+                f"mixed generation: bootstrap repo_commit={bootstrap.get('repo_commit')} "
+                f"!= context.db repo_commit={db_meta.get('proposal_repo_commit')}"
+            )
+
+    live_commit = get_live_repo_commit(REPO_ROOT)
+    commit_match = bool(live_commit) and db_meta is not None and live_commit == db_meta.get("proposal_repo_commit")
+    if db_meta is not None and not commit_match:
+        reasons.append(f"context.db repo_commit does not match live proposal repo HEAD.")
+
+    ready = bootstrap_ok and db_ok and not mixed_generation and commit_match
+    return {
+        "status": "ready" if ready else "not_ready",
+        "ready": ready,
+        "bootstrap_available": bool(bootstrap.get("available")),
+        "bootstrap_freshness": bootstrap.get("freshness"),
+        "context_db_available": db_ok,
+        "mixed_generation": mixed_generation,
+        "reasons": reasons,
+    }
 
 
 @app.get("/api/v1/summary")
@@ -187,6 +246,45 @@ def api_context_bootstrap():
     against the live proposal repo commit before returning it. No
     absolute filesystem path is ever included in the response."""
     return read_context_bootstrap(STATE_DIR, REPO_ROOT)
+
+
+@app.get("/api/v1/context/section/{section}")
+def api_context_section(section: str):
+    """LEVEL 2 -- read-only structured summary + snippets + exact
+    sources for one allowlisted section. Never builds the bundle/index,
+    never writes, never accepts a filesystem path as `section` (only a
+    bare name from SECTION_ALLOWLIST is ever dispatched)."""
+    bootstrap = read_context_bootstrap(STATE_DIR, REPO_ROOT)
+    try:
+        return context_retrieval.get_section(STATE_DIR, REPO_ROOT, section, bootstrap)
+    except RetrievalError as e:
+        return {"available": False, "error": e.code, "reason": e.message}
+
+
+@app.get("/api/v1/context/search")
+def api_context_search(q: str, top_k: int = 5, section: str | None = None):
+    """LEVEL 3 -- read-only FTS5 lexical search (+ semantic re-score
+    only if the embeddings worker and stored embeddings are both
+    actually available -- semantic_used is reported honestly either
+    way). Never builds the index, never writes, never returns a full
+    document -- only bounded snippets."""
+    try:
+        return context_retrieval.search(STATE_DIR, REPO_ROOT, q, top_k=top_k, section=section)
+    except RetrievalError as e:
+        return {"available": False, "error": e.code, "reason": e.message}
+
+
+@app.get("/api/v1/context/source")
+def api_context_source(path: str):
+    """LEVEL 3 -- read-only bounded view of one canonical source's
+    chunks. `path` must already be a source in the current context.db
+    generation (itself built only from config/canonical_documents.json)
+    -- absolute paths, `../` traversal, and any path outside that
+    allowlist are rejected before any query is even run."""
+    try:
+        return context_retrieval.get_source(STATE_DIR, REPO_ROOT, path)
+    except RetrievalError as e:
+        return {"available": False, "error": e.code, "reason": e.message}
 
 
 # Bumped whenever a static asset (dashboard.css / dashboard.js) changes,
