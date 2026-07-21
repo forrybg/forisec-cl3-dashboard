@@ -128,6 +128,22 @@ function renderDocsSummary(docs) {
   setText('docs-sum-draft', docs.draft_count ?? '—');
   setText('docs-sum-review', reviewRequired);
   setText('docs-sum-missing', docs.missing_count ?? '—');
+
+  const planned = docs.planned_count || 0;
+  const frozen = docs.frozen_count || 0;
+  const draft = docs.draft_count || 0;
+  const missing = docs.missing_count || 0;
+  const stackEl = document.getElementById('docs-stackbar');
+  if (stackEl && planned > 0) {
+    const pct = n => Math.max(0, (n / planned) * 100);
+    stackEl.innerHTML =
+      `<div class="stack-seg frozen" style="width:${pct(frozen)}%" title="Frozen: ${frozen}"></div>` +
+      `<div class="stack-seg draft" style="width:${pct(draft)}%" title="Draft: ${draft}"></div>` +
+      `<div class="stack-seg review" style="width:${pct(reviewRequired)}%" title="Review required: ${reviewRequired}"></div>` +
+      `<div class="stack-seg missing" style="width:${pct(missing)}%" title="Missing: ${missing}"></div>`;
+  } else if (stackEl) {
+    stackEl.innerHTML = '';
+  }
 }
 
 function renderDocs(docs) {
@@ -237,6 +253,17 @@ function renderGuardian(d) {
   const occurrenceTotal = findings.reduce((n, f) => n + (f.occurrence_count ?? 1), 0);
   noteEl.textContent = `${d.guardian_status} · ${d.freshness || 'UNKNOWN'} · ${findings.length} distinct issue(s), ${occurrenceTotal} occurrence(s)`;
   bodyEl.innerHTML = guardianFindingsRows(findings);
+
+  const bannerEl = document.getElementById('guardian-info-banner');
+  if (bannerEl) {
+    const allInfo = findings.length > 0 && findings.every(f => f.severity === 'info');
+    if (allInfo) {
+      bannerEl.style.display = 'block';
+      bannerEl.textContent = `ℹ All ${findings.length} item(s) below are INFO-level (resolved cross-repo citations / expected placeholders) — none are warnings or critical risks.`;
+    } else {
+      bannerEl.style.display = 'none';
+    }
+  }
 }
 
 // ── Agent 4 — Project Supervisor ────────────────────────────────────────
@@ -344,6 +371,8 @@ function renderEval5(d) {
 
   setText('eval5-canonical', d.canonical_score === null || d.canonical_score === undefined
     ? 'NOT APPROVED' : `${d.canonical_score} / 15`);
+  const canonWrap = document.getElementById('eval5-canonical-wrap');
+  if (canonWrap) canonWrap.classList.toggle('approved', d.canonical_score !== null && d.canonical_score !== undefined);
   setText('eval5-promotion', d.promotion_status || 'UNKNOWN');
   setText('eval5-fundability', d.fundability || 'UNKNOWN');
   setText('eval5-excellence', ds.excellence ?? '—');
@@ -413,13 +442,14 @@ function renderCompetitive(d) {
   document.getElementById('competitive-gauge-fill').style.width = `${pctOf5}%`;
 
   const components = ca.components || {};
-  bodyEl.innerHTML = Object.entries(components).map(([name, c]) => {
-    const pct = Math.round((c.score || 0) * 100);
-    const blockers = (c.blockers && c.blockers.length) ? c.blockers.map(escapeHtml).join('; ') : 'none';
+  bodyEl.innerHTML = Object.entries(components).map(([name, comp]) => {
+    const pct = Math.round((comp.score || 0) * 100);
+    const isCritical = (comp.score || 0) < 0.2;
+    const blockers = (comp.blockers && comp.blockers.length) ? comp.blockers.map(escapeHtml).join('; ') : 'none';
     return `<div class="component-row">
-      <div class="component-label"><span>${escapeHtml(name)}</span><span>${c.score}</span></div>
-      <div class="component-bar-track"><div class="component-bar-fill" style="width:${pct}%"></div></div>
-      <div class="muted" style="font-size:11px;margin-top:2px">${escapeHtml(c.rationale)} · blockers: ${blockers}</div>
+      <div class="component-label"><span>${escapeHtml(name)}${isCritical ? '<span class="crit-dot" title="Near zero -- investigate"></span>' : ''}</span><span>${comp.score}</span></div>
+      <div class="component-bar-track"><div class="component-bar-fill${isCritical ? ' critical-low' : ''}" style="width:${pct}%"></div></div>
+      <div class="muted" style="font-size:11px;margin-top:2px">${escapeHtml(comp.rationale)} · blockers: ${blockers}</div>
     </div>`;
   }).join('');
 }
@@ -526,7 +556,10 @@ function renderImprovementLoop(d, svc) {
   html += '<b style="font-size:12px;display:block;margin-top:12px">Fix packs (PENDING_REVIEW by default -- never auto-applied)</b>';
   html += fixPacks.length ? fixPacks.map((fp, i) => {
     const last = i === fixPacks.length - 1 ? 'border-bottom:none' : '';
-    return `<div class="row" style="${last}"><span>${escapeHtml(fp.proposed_action)}<br><small class="muted">affects: ${escapeHtml((fp.affected_files||[]).join(', '))}</small></span><span class="status-pill ${fixPillMap[fp.status] || 'pill-grey'}">${escapeHtml(fp.status)}</span></div>`;
+    const actions = fp.status === 'PENDING_REVIEW'
+      ? `<div class="fixpack-actions"><button class="fixpack-btn approve" disabled title="Wire to a real approval endpoint before enabling">Approve</button><button class="fixpack-btn reject" disabled title="Wire to a real approval endpoint before enabling">Reject</button></div>`
+      : '';
+    return `<div class="row" style="${last};display:block;padding:12px 0"><div style="display:flex;justify-content:space-between;align-items:flex-start"><span>${escapeHtml(fp.proposed_action)}<br><small class="muted">affects: ${escapeHtml((fp.affected_files||[]).join(', '))}</small></span><span class="status-pill ${fixPillMap[fp.status] || 'pill-grey'}">${escapeHtml(fp.status)}</span></div>${actions}</div>`;
   }).join('') : '<div class="muted">No fix packs.</div>';
 
   bodyEl.innerHTML = html;
@@ -599,6 +632,12 @@ function renderTimeline(d, historyResp) {
   const gain = ts.total_gain;
   setText('timeline-gain', `${gain > 0 ? '+' : ''}${gain}`);
   document.getElementById('timeline-gain').style.color = gain > 0 ? 'var(--green)' : (gain < 0 ? 'var(--red)' : 'var(--muted)');
+  const gainNoteEl = document.getElementById('timeline-gain-note');
+  if (gainNoteEl) {
+    gainNoteEl.textContent = (gain === 0 && ts.latest.scoring_model_version !== (ts.baseline && ts.baseline.scoring_model_version))
+      ? 'flat because of a scoring-model change, not a repo regression'
+      : '';
+  }
   setText('timeline-count', ts.snapshot_count);
   setText('timeline-event-split', `${ts.repository_change_count ?? '—'} / ${ts.model_recalculation_count ?? '—'}`);
   setText('timeline-commit', ts.latest.repo_commit || '—');
@@ -654,19 +693,36 @@ function renderEvidenceCoverage(d) {
   const budget = d.budget_readiness || {};
   setText('evidence-budget', budget.reconciled ? 'RECONCILED' : (budget.available ? 'PARTIAL' : 'UNAVAILABLE'));
 
+  const barClass = (ok, total) => {
+    if (!total) return 'empty';
+    if (ok >= total) return 'full';
+    if (ok === 0) return 'empty';
+    return 'partial';
+  };
+  const fillBar = (id, ok, total) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const pct = total ? Math.round((ok / total) * 100) : 0;
+    el.style.width = `${pct}%`;
+    el.className = 'mini-bar-fill ' + barClass(ok, total);
+  };
+
   const partners = d.partner_readiness || [];
   const partnersOk = partners.filter(p => p.result === 'OK').length;
   setText('evidence-partner', `${partnersOk}/${partners.length} profiles present`);
+  fillBar('evidence-partner-bar', partnersOk, partners.length);
 
   const registers = d.register_readiness || {};
   const regEntries = Object.values(registers).filter(r => r && typeof r === 'object' && 'exists_non_empty' in r);
   const regOk = regEntries.filter(r => r.exists_non_empty).length;
   setText('evidence-register', `${regOk}/${regEntries.length} registers present`);
+  fillBar('evidence-register-bar', regOk, regEntries.length);
 
   const technical = d.technical_readiness || {};
   const techEntries = Object.values(technical).filter(r => r && typeof r === 'object' && 'exists_non_empty' in r);
   const techOk = techEntries.filter(r => r.exists_non_empty).length;
   setText('evidence-technical', `${techOk}/${techEntries.length} present`);
+  fillBar('evidence-technical-bar', techOk, techEntries.length);
 
   const cov = d.coverage_summary || {};
   setText('evidence-contradictions', cov.contradiction_count ?? '—');
@@ -686,6 +742,39 @@ function renderEvidenceCoverage(d) {
       </span>
     </div>`;
   }).join('') || '<div class="muted">No criteria evaluated.</div>';
+}
+
+
+// ── Hero strip: at-a-glance key numbers (top of page) ──────────────────
+function renderHeroStrip(agg, eval5, evidence) {
+  const overallEl = document.getElementById('hero-overall');
+  if (overallEl) {
+    overallEl.textContent = (agg && agg.overall_status) || '—';
+    overallEl.style.color = OVERALL_COLOR[agg && agg.overall_status] || 'var(--muted)';
+  }
+
+  const ds = (eval5 && eval5.diagnostic_score) || {};
+  setText('hero-diagnostic', ds.total != null ? `${ds.total}` : '—');
+
+  const sections = (eval5 && eval5.section_scores) || [];
+  if (sections.length) {
+    const worst = sections.reduce((a, b) => (a.score <= b.score ? a : b));
+    setText('hero-blocker-label', `Top blocker — ${worst.criterion_id}`);
+    setText('hero-blocker-value', `${worst.score} / ${worst.max_score}`);
+    setText('hero-blocker-sub', worst.title || '');
+  } else {
+    setText('hero-blocker-label', 'Top blocker');
+    setText('hero-blocker-value', '—');
+    setText('hero-blocker-sub', 'no scored criteria yet');
+  }
+
+  const partners = (evidence && evidence.partner_readiness) || [];
+  const partnersOk = partners.filter(p => p.result === 'OK').length;
+  const partnerEl = document.getElementById('hero-partner');
+  if (partnerEl) {
+    partnerEl.textContent = partners.length ? `${partnersOk}/${partners.length}` : '—';
+    partnerEl.style.color = (partners.length && partnersOk === 0) ? 'var(--red)' : (partnersOk >= partners.length ? 'var(--green)' : 'var(--yellow)');
+  }
 }
 
 async function loadAll() {
@@ -717,6 +806,7 @@ async function loadAll() {
     evidence = await fetch('/api/v1/evidence/coverage').then(r => r.json());
   } catch (e) { /* keep default unavailable */ }
   renderEvidenceCoverage(evidence);
+  renderHeroStrip(d, eval5, evidence);
 
   renderEval5(eval5);
   renderCompetitive(eval5);
@@ -731,7 +821,7 @@ async function loadAll() {
 }
 
 function switchTab(name) {
-  ['overview', 'budget'].forEach(t => {
+  ['overview', 'budget', 'repomap'].forEach(t => {
     document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
     document.getElementById(`tab-btn-${t}`).classList.toggle('active', t === name);
   });
@@ -794,7 +884,56 @@ async function loadBudget() {
   }
 }
 
+const REPOMAP_KIND_ICON = {python_module: '🐍', script: '📜', schema: '🧾'};
+
+function renderRepoMap(d) {
+  const bodyEl = document.getElementById('repomap-body');
+  const noteEl = document.getElementById('repomap-note');
+  if (!d || !d.available) {
+    noteEl.textContent = '(unavailable — run scripts/refresh_agents.sh so context.index_builder populates context.db)';
+    bodyEl.innerHTML = '<div class="muted">No context.db yet, or it has no repo_map table (older generation). The next refresh_agents.sh run will populate it.</div>';
+    return;
+  }
+  const files = d.files || [];
+  noteEl.textContent = `${files.length} file${files.length === 1 ? '' : 's'} · generation ${escapeHtml((d.generation_id || '').slice(0, 8))} · ${escapeHtml(d.freshness || '')}`;
+
+  if (files.length === 0) {
+    bodyEl.innerHTML = '<div class="muted">Repo map is empty for this generation.</div>';
+    return;
+  }
+
+  let html = '<table class="repomap-table"><thead><tr>'
+    + '<th>Path</th><th>Kind</th><th>Summary</th><th>Functions</th><th>Classes</th><th class="num">Lines</th>'
+    + '</tr></thead><tbody>';
+  files.forEach(f => {
+    const icon = REPOMAP_KIND_ICON[f.kind] || '📄';
+    const functions = (f.top_level_functions || []).map(fn => `<code>${escapeHtml(fn)}</code>`).join(' ') || '<span class="muted">—</span>';
+    const classes = (f.top_level_classes || []).map(c => `<code>${escapeHtml(c)}</code>`).join(' ') || '<span class="muted">—</span>';
+    html += `<tr>
+      <td class="mono">${escapeHtml(f.path)}</td>
+      <td>${icon} ${escapeHtml(f.kind)}</td>
+      <td>${escapeHtml(f.summary || '—')}</td>
+      <td>${functions}</td>
+      <td>${classes}</td>
+      <td class="num">${f.line_count ?? '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  bodyEl.innerHTML = html;
+}
+
+async function loadRepoMap() {
+  try {
+    const d = await fetch('/api/v1/context/repo-map').then(r => r.json());
+    renderRepoMap(d);
+  } catch (e) {
+    document.getElementById('repomap-note').textContent = '(error)';
+  }
+}
+
 loadAll();
 loadBudget();
+loadRepoMap();
 setInterval(loadAll, 30000);
 setInterval(loadBudget, 30000);
+setInterval(loadRepoMap, 30000);

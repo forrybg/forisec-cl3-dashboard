@@ -302,7 +302,7 @@ def api_context_repo_map():
 # Bumped whenever a static asset (dashboard.css / dashboard.js) changes,
 # so a browser tab left open across a deploy is forced to refetch instead
 # of silently rendering with stale cached CSS/JS.
-ASSET_VERSION = "2026-07-21-4"
+ASSET_VERSION = "2026-07-21-5"
 
 
 @app.get("/", response_class=HTMLResponse)

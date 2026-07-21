@@ -10,13 +10,49 @@
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-overview" onclick="switchTab('overview')">📊 Overview</button>
     <button class="tab-btn" id="tab-btn-budget" onclick="switchTab('budget')">💶 Budget</button>
+    <button class="tab-btn" id="tab-btn-repomap" onclick="switchTab('repomap')">🗺️ Repo Map</button>
   </div>
 
   <div id="tab-overview" class="tab-panel active">
+
+  <div class="quicknav">
+    <a href="#agg-card">Status</a>
+    <a href="#docs-card">Docs</a>
+    <a href="#guardian-card">Guardian</a>
+    <a href="#evidence-card">Evidence</a>
+    <a href="#eval5-card">Score</a>
+    <a href="#competitive-card">Competitive</a>
+    <a href="#improvement-card">Fix Packs</a>
+    <a href="#timeline-card">Timeline</a>
+  </div>
+
+  <!-- Hero strip: at-a-glance key numbers, computed client-side in renderHeroStrip() -->
+  <div class="hero-strip" id="hero-strip">
+    <div class="hero-box">
+      <div class="hero-label">Overall status</div>
+      <div class="hero-value" id="hero-overall">—</div>
+    </div>
+    <div class="hero-box">
+      <div class="hero-label">Diagnostic score</div>
+      <div class="hero-value" id="hero-diagnostic">—</div>
+      <div class="hero-sub">/ 15</div>
+    </div>
+    <div class="hero-box hero-blocker">
+      <div class="hero-label" id="hero-blocker-label">Top blocker</div>
+      <div class="hero-value" id="hero-blocker-value">—</div>
+      <div class="hero-sub" id="hero-blocker-sub">—</div>
+    </div>
+    <div class="hero-box">
+      <div class="hero-label">Partner profiles</div>
+      <div class="hero-value" id="hero-partner">—</div>
+      <div class="hero-sub">present</div>
+    </div>
+  </div>
+
   <div class="card" id="agg-card" style="border-color:#7d5fd6">
     <div class="section-title">🧾 FORISEC Overall Status <span class="note" id="agg-note">loading…</span></div>
     <div class="agg-grid">
-      <div><div class="label">Overall</div><div id="agg-overall" class="value">—</div></div>
+      <div><div class="label">Overall</div><div id="agg-overall" class="value" style="font-size:22px">—</div></div>
       <div><div class="label">Live commit</div><div id="agg-commit" class="value mono">—</div></div>
       <div><div class="label">Critical findings</div><div id="agg-critical" class="value">—</div></div>
       <div><div class="label">Pending manual reviews</div><div id="agg-reviews" class="value">—</div></div>
@@ -50,6 +86,15 @@
       <div><div class="label">Review required</div><div id="docs-sum-review" class="value">—</div></div>
       <div><div class="label">Missing</div><div id="docs-sum-missing" class="value">—</div></div>
     </div>
+    <div id="docs-stackbar-wrap">
+      <div class="stack-bar" id="docs-stackbar"></div>
+      <div class="stack-legend">
+        <span><i style="background:var(--green)"></i>Frozen</span>
+        <span><i style="background:var(--accent)"></i>Draft</span>
+        <span><i style="background:var(--yellow)"></i>Review required</span>
+        <span><i style="background:var(--red)"></i>Missing</span>
+      </div>
+    </div>
     <details id="docs-details">
       <summary>📋 Document checklist (click to expand)</summary>
       <div id="docs-body"><div class="muted">Loading document checklist…</div></div>
@@ -57,8 +102,9 @@
   </div>
 
   <!-- Agent 2 — Proposal Evaluator -->
-  <div class="card" id="eval-card">
+  <div class="card card-inactive" id="eval-card">
     <div class="section-title">🧭 Agent 2 — Proposal Evaluator <span class="note" id="eval-note">loading…</span></div>
+    <div class="muted" style="margin-bottom:8px;font-size:11px">This agent's real scoring is not implemented — see Agent 5 below for the active evidence-gated score.</div>
     <div id="eval-body"><div class="muted">Loading evaluator state…</div></div>
   </div>
 
@@ -73,6 +119,7 @@
       <div><div class="label">Medium</div><div id="guardian-sum-medium" class="value">—</div></div>
       <div><div class="label">Scanned files</div><div id="guardian-sum-scanned" class="value">—</div></div>
     </div>
+    <div id="guardian-info-banner" style="display:none" class="guardian-info-banner"></div>
     <div id="guardian-body"><div class="muted">Loading guardian state…</div></div>
   </div>
 
@@ -98,9 +145,12 @@
       <div><div class="label">Overall result</div><div id="evidence-result" class="value">—</div></div>
       <div><div class="label">Freshness</div><div id="evidence-freshness" class="value">—</div></div>
       <div><div class="label">Budget readiness</div><div id="evidence-budget" class="value">—</div></div>
-      <div><div class="label">Partner readiness</div><div id="evidence-partner" class="value">—</div></div>
-      <div><div class="label">Register readiness</div><div id="evidence-register" class="value">—</div></div>
-      <div><div class="label">Technical readiness</div><div id="evidence-technical" class="value">—</div></div>
+      <div><div class="label">Partner readiness</div><div id="evidence-partner" class="value">—</div>
+        <div class="mini-bar-wrap"><div class="mini-bar-track"><div id="evidence-partner-bar" class="mini-bar-fill" style="width:0%"></div></div></div></div>
+      <div><div class="label">Register readiness</div><div id="evidence-register" class="value">—</div>
+        <div class="mini-bar-wrap"><div class="mini-bar-track"><div id="evidence-register-bar" class="mini-bar-fill" style="width:0%"></div></div></div></div>
+      <div><div class="label">Technical readiness</div><div id="evidence-technical" class="value">—</div>
+        <div class="mini-bar-wrap"><div class="mini-bar-track"><div id="evidence-technical-bar" class="mini-bar-fill" style="width:0%"></div></div></div></div>
       <div><div class="label">Contradictions</div><div id="evidence-contradictions" class="value">—</div></div>
       <div><div class="label">Missing evidence items</div><div id="evidence-missing" class="value">—</div></div>
     </div>
@@ -122,7 +172,7 @@
       <div><div class="label">Missing evidence</div><div id="eval5-missing-count" class="value">—</div></div>
       <div><div class="label">Promotion</div><div id="eval5-promotion" class="value">—</div></div>
       <div><div class="label">Fundability</div><div id="eval5-fundability" class="value">—</div></div>
-      <div><div class="label">Canonical score /15</div><div id="eval5-canonical" class="value">—</div></div>
+      <div><div class="canonical-highlight" id="eval5-canonical-wrap"><div class="label">Canonical score /15 (promoted, gated separately from diagnostic)</div><div id="eval5-canonical" class="value">—</div></div></div>
       <div><div class="label">Excellence</div><div id="eval5-excellence" class="value">—</div></div>
       <div><div class="label">Impact</div><div id="eval5-impact" class="value">—</div></div>
       <div><div class="label">Implementation</div><div id="eval5-implementation" class="value">—</div></div>
@@ -195,7 +245,7 @@
     <div class="agg-grid" style="margin-bottom:16px">
       <div><div class="label">Baseline total (REPOSITORY_CHANGE)</div><div id="timeline-baseline" class="value">—</div></div>
       <div><div class="label">Latest total</div><div id="timeline-latest" class="value">—</div></div>
-      <div><div class="label">Total gain/loss (REPOSITORY_CHANGE only)</div><div id="timeline-gain" class="value">—</div></div>
+      <div><div class="label">Total gain/loss (REPOSITORY_CHANGE only)</div><div id="timeline-gain" class="value">—</div><span class="gain-note" id="timeline-gain-note"></span></div>
       <div><div class="label">Snapshots</div><div id="timeline-count" class="value">—</div></div>
       <div><div class="label">Repository changes / model recalcs</div><div id="timeline-event-split" class="value">—</div></div>
       <div><div class="label">Latest commit</div><div id="timeline-commit" class="value mono">—</div></div>
@@ -217,6 +267,14 @@
       <div class="muted" style="margin-bottom:8px">Task → Deliverable → Role → PM → Budget. Parsed live from each WP repo's own README.md by the <span class="mono">budget_reader</span> agent (six fixed repos, sibling of this canon repo — see that agent's docstring for the documented scope exception). Foritech-internal working figures, not yet consortium-reconciled.</div>
       <div id="budget-body"><div class="muted">Loading budget breakdown…</div></div>
       <div id="budget-total" class="muted" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div id="tab-repomap" class="tab-panel">
+    <div class="card" id="repomap-card">
+      <div class="section-title">🗺️ Repo Map <span class="note" id="repomap-note">loading…</span></div>
+      <div class="muted" style="margin-bottom:8px">Deterministic catalog of THIS SERVICE's own codebase (app/, agents/, pipeline/, context/, plus refresh_agents.sh and the context bundle schema) — never the proposal repo. Rebuilt fresh every <span class="mono">context.db</span> generation by <span class="mono">context/index_builder.py</span>'s <span class="mono">_scan_repo_map()</span> (AST-based; summary/functions/classes are extracted facts, never an LLM guess). Served read-only from <span class="mono">GET /api/v1/context/repo-map</span>.</div>
+      <div id="repomap-body"><div class="muted">Loading repo map…</div></div>
     </div>
   </div>
 

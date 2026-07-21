@@ -108,6 +108,12 @@ details.criterion-panel[open] summary{margin-bottom:8px}
 .budget-table col.col-status{width:auto}
 .budget-table .status-pill{margin-left:10px;white-space:nowrap}
 .budget-table .draft-flag{margin-left:10px}
+.repomap-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.repomap-table th{text-align:left;font-size:11px;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border)}
+.repomap-table td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.repomap-table tr:last-child td{border-bottom:none}
+.repomap-table td.num,.repomap-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.repomap-table code{font-size:12px;background:var(--code-bg,rgba(127,127,127,0.12));padding:1px 5px;border-radius:3px;margin-right:4px;display:inline-block;margin-bottom:2px}
 
 /* Evidence coverage panel + Agent 5 heuristic-score disclaimer (STEP 1 OF 2) */
 .heuristic-banner{background:#3a2410;color:var(--orange);border:1px solid #6b3d16;border-radius:8px;
@@ -120,3 +126,74 @@ details.criterion-panel[open] summary{margin-bottom:8px}
   padding:10px 14px;margin-bottom:14px;font-size:12px;font-weight:700;letter-spacing:.02em}
 .criterion-ceiling-note{font-size:11px;color:var(--muted);margin:4px 0}
 .affected-sources-list{margin:4px 0 0 0;padding-left:16px;font-size:11px;color:var(--muted)}
+
+
+/* ============================================================
+   UI READABILITY PASS — 2026-07-21
+   Hero strip, blocker card, progress bars, highlight states
+   ============================================================ */
+
+/* --- Hero strip: at-a-glance summary lane, top of page --- */
+.hero-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.hero-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+.hero-box .hero-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+.hero-box .hero-value{font-size:34px;font-weight:800;line-height:1}
+.hero-box .hero-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.hero-box.hero-blocker{border-color:#5c1f1f;background:#1f1517}
+.hero-box.hero-blocker .hero-value{color:var(--red)}
+@media(max-width:900px){.hero-strip{grid-template-columns:1fr 1fr}}
+
+/* --- Repeated commit/timestamp context fields: de-emphasize --- */
+#docs-sum-commit,#sup-sum-commit,#timeline-commit{font-size:11px;font-weight:400;color:var(--muted)}
+
+/* --- Agent 2 (inactive/no scoring) card: visually recede --- */
+.card-inactive{opacity:.72;background:#15171f}
+.card-inactive .section-title{color:var(--muted)}
+
+/* --- Canonical score highlight (evidence-gated vs canonical distinction) --- */
+.canonical-highlight{border:1px solid #5c1f1f;background:#1f1517;border-radius:8px;padding:10px 12px;margin-top:4px}
+.canonical-highlight.approved{border-color:#1f4a2e;background:#121a15}
+.canonical-highlight .value{font-size:18px}
+
+/* --- Generic readiness mini progress bar (partner/register/technical) --- */
+.mini-bar-wrap{margin-top:6px}
+.mini-bar-track{background:#1c2230;border-radius:6px;height:6px;overflow:hidden}
+.mini-bar-fill{height:100%;border-radius:6px;background:var(--accent)}
+.mini-bar-fill.full{background:var(--green)}
+.mini-bar-fill.partial{background:var(--yellow)}
+.mini-bar-fill.empty{background:var(--red)}
+
+/* --- Stacked bar for document checklist (frozen/draft/review/missing) --- */
+.stack-bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:#1c2230;margin-top:10px}
+.stack-seg{height:100%}
+.stack-seg.frozen{background:var(--green)}
+.stack-seg.draft{background:var(--accent)}
+.stack-seg.review{background:var(--yellow)}
+.stack-seg.missing{background:var(--red)}
+.stack-legend{display:flex;gap:14px;margin-top:6px;font-size:10px;color:var(--muted);flex-wrap:wrap}
+.stack-legend span{display:flex;align-items:center;gap:4px}
+.stack-legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+
+/* --- Competitive component: near-zero emphasis --- */
+.component-bar-fill.critical-low{background:var(--red)}
+.component-label .crit-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-left:6px}
+
+/* --- Timeline gain inline annotation --- */
+.gain-note{font-size:10px;color:var(--muted);display:block;margin-top:2px}
+
+/* --- Guardian info-only banner --- */
+.guardian-info-banner{background:#1c2230;color:var(--muted);border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;margin-bottom:12px;font-size:11px}
+
+/* --- Fix pack action row (visual placeholder, not wired to a backend action) --- */
+.fixpack-actions{display:flex;gap:8px;margin-top:6px}
+.fixpack-btn{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+  background:#1c2230;color:var(--muted);cursor:not-allowed}
+.fixpack-btn.approve{border-color:#1f4a2e;color:var(--green)}
+.fixpack-btn.reject{border-color:#5c1f1f;color:var(--red)}
+
+/* --- Quick-jump nav (sticky) --- */
+.quicknav{position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0;margin-bottom:8px;
+  display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.quicknav a{font-size:11px;color:var(--muted);text-decoration:none;padding:4px 10px;border:1px solid var(--border);border-radius:12px}
+.quicknav a:hover{color:var(--text);border-color:var(--accent)}
