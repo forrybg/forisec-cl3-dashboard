@@ -12,6 +12,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import jsonschema
+
 STATE_FILES = {
     "docs": "docs_state.json",
     "evaluation": "evaluation_state.json",
@@ -22,7 +24,11 @@ STATE_FILES = {
     "budget": "budget_state.json",
     "evidence": "proposal_evidence_state.json",
     "services": "services_status.json",
+    "context": "project_context_state.json",
 }
+
+CONTRACTS_DIR = Path(__file__).resolve().parents[1] / "contracts"
+CONTEXT_SCHEMA_PATH = CONTRACTS_DIR / "project_context_state.schema.json"
 
 
 def get_live_repo_commit(repo_root: Path) -> str | None:
@@ -121,3 +127,71 @@ def read_history(state_dir: Path) -> list[dict]:
             r["event_type"] = _classify_event_type(prev, r)
         prev = r
     return records
+
+
+def read_context_bootstrap(state_dir: Path, repo_root: Path) -> dict:
+    """
+    Read-only accessor for the PHASE 1 Project Context Bundle
+    (project_context_state.json), used by GET /api/v1/context/bootstrap.
+
+    This function NEVER runs pipeline.context_builder, never scans the
+    proposal repo's markdown, and never writes anything. It only:
+      1. reads the already-written JSON file,
+      2. validates it against contracts/project_context_state.schema.json,
+      3. recomputes freshness against the LIVE proposal repo commit
+         (the same freshness-recompute pattern read_state() already uses
+         for every other agent state file) -- a bundle generated FRESH
+         an hour ago is correctly downgraded to STALE here if the
+         proposal repo has moved on since, without ever re-reading the
+         proposal repo's content.
+
+    Returns {"available": False, "status": "UNAVAILABLE", "reason": ...}
+    on any missing file, invalid JSON, or schema-validation failure --
+    never raises, never exposes an absolute filesystem path (the state
+    file itself only ever contains repo-relative paths and bare
+    filenames, never an absolute FORISEC_REPO_ROOT/FORISEC_STATE_DIR
+    path, so nothing needs to be redacted here).
+    """
+    path = state_dir / STATE_FILES["context"]
+    if not path.exists():
+        return {"available": False, "status": "UNAVAILABLE",
+                "freshness": "UNAVAILABLE",
+                "reason": "No project context bundle has been generated yet."}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"available": False, "status": "UNAVAILABLE",
+                "freshness": "UNAVAILABLE",
+                "reason": f"project_context_state.json is invalid JSON: {e}"}
+
+    if not isinstance(data, dict):
+        return {"available": False, "status": "UNAVAILABLE",
+                "freshness": "UNAVAILABLE",
+                "reason": "project_context_state.json does not contain a JSON object."}
+
+    try:
+        schema = json.loads(CONTEXT_SCHEMA_PATH.read_text(encoding="utf-8"))
+        jsonschema.validate(data, schema)
+    except jsonschema.ValidationError as e:
+        return {"available": False, "status": "UNAVAILABLE",
+                "freshness": "UNAVAILABLE",
+                "reason": f"project_context_state.json failed schema validation: {e.message}"}
+    except Exception as e:
+        return {"available": False, "status": "UNAVAILABLE",
+                "freshness": "UNAVAILABLE",
+                "reason": f"Could not load or parse the context schema: {e}"}
+
+    data["available"] = True
+
+    live_commit = get_live_repo_commit(repo_root)
+    recorded_commit = data.get("repo_commit")
+    if live_commit and recorded_commit:
+        if live_commit != recorded_commit:
+            data["freshness"] = "STALE"
+        # else: keep the bundle's own freshness (already reflects
+        # producer-level staleness at generation time).
+        data["live_repo_commit"] = live_commit
+    else:
+        data["freshness"] = "UNAVAILABLE"
+
+    return data

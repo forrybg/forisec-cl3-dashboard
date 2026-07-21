@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import load_config_or_exit
-from app.state_reader import read_all_state, get_live_repo_commit, read_history
+from app.state_reader import read_all_state, get_live_repo_commit, read_history, read_context_bootstrap
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -175,6 +175,18 @@ def api_services():
     only agents/service_monitor.py (run via scripts/refresh_agents.sh)
     does that, on the timer's existing cadence."""
     return read_all_state(STATE_DIR, REPO_ROOT)["services"]
+
+
+@app.get("/api/v1/context/bootstrap")
+def api_context_bootstrap():
+    """Read-only: whatever pipeline/context_builder.py last wrote to
+    project_context_state.json. PHASE 1 only -- this endpoint never
+    builds the bundle, never runs agents, never scans the proposal repo,
+    and never writes anything. It validates the stored bundle against
+    contracts/project_context_state.schema.json and recomputes freshness
+    against the live proposal repo commit before returning it. No
+    absolute filesystem path is ever included in the response."""
+    return read_context_bootstrap(STATE_DIR, REPO_ROOT)
 
 
 # Bumped whenever a static asset (dashboard.css / dashboard.js) changes,

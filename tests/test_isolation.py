@@ -19,6 +19,10 @@ ALLOWLIST = {
     # No import, no file path, no fallback default -- verified by the
     # AST import-scan test below, which still enforces the real rule.
     "agents/service_monitor.py": {"foritech-os"},
+    # Explanatory docstring only ("never touches foritech-os"), stating
+    # what this PHASE 1 context builder does NOT do. No import, no file
+    # path -- verified by the AST import-scan test below.
+    "pipeline/context_builder.py": {"foritech-os"},
 }
 
 FORBIDDEN_SUBSTRINGS = [
@@ -45,6 +49,9 @@ ALLOWED_TOP_LEVEL_IMPORTS = {
     # client, never a foritech-os import -- see that file's module
     # docstring for the full scope-exception rationale.
     "urllib",
+    # __future__ (postponed annotations) and uuid (stdlib, for
+    # generation_id) are required by pipeline/context_builder.py.
+    "__future__", "uuid",
 }
 
 
@@ -148,3 +155,48 @@ def test_state_only_written_to_state_dir(fake_repo, state_dir, tmp_path):
 
     for f in ["docs_state.json", "guardian_state.json", "evaluation_state.json", "supervisor_state.json"]:
         assert (state_dir / f).exists()
+
+
+def test_context_builder_has_no_sqlite_or_semantic_search_dependency():
+    """PHASE 1 explicitly forbids SQLite, embeddings, semantic search,
+    or an MCP connector -- those are PHASE 2. Guards against scope
+    creep being quietly added to pipeline/context_builder.py, checking
+    actual import statements only (an AST scan, not a text/docstring
+    scan -- the module's own docstring legitimately explains what it
+    does NOT do, which would otherwise false-positive a substring check)."""
+    tree = ast.parse((PROJECT_ROOT / "pipeline" / "context_builder.py").read_text(encoding="utf-8"))
+    forbidden_modules = {"sqlite3", "faiss", "chromadb", "sentence_transformers",
+                         "annoy", "pinecone", "mcp"}
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    offenders = imported & forbidden_modules
+    assert offenders == set(), f"PHASE 2 dependency imported into PHASE 1 builder: {offenders}"
+
+
+def test_context_bootstrap_endpoint_does_not_run_builder_or_write(fake_repo, state_dir):
+    """GET /api/v1/context/bootstrap must only read the already-written
+    project_context_state.json -- never invoke pipeline.context_builder,
+    never write any file, even when the bundle doesn't exist yet."""
+    import importlib
+    import os as _os
+    import sys as _sys
+
+    _os.environ["FORISEC_REPO_ROOT"] = str(fake_repo)
+    _os.environ["FORISEC_STATE_DIR"] = str(state_dir)
+    for mod_name in list(_sys.modules):
+        if mod_name == "app" or mod_name.startswith("app."):
+            del _sys.modules[mod_name]
+    import app.main as main_module
+    importlib.reload(main_module)
+
+    from fastapi.testclient import TestClient
+    client = TestClient(main_module.app)
+
+    before = sorted(p.name for p in state_dir.iterdir())
+    client.get("/api/v1/context/bootstrap")
+    after = sorted(p.name for p in state_dir.iterdir())
+    assert before == after == []

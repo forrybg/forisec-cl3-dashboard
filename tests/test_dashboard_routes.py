@@ -43,7 +43,7 @@ def test_health_returns_200(fake_repo, state_dir):
     "/api/v1/summary", "/api/v1/docs", "/api/v1/evaluation",
     "/api/v1/guardian", "/api/v1/supervisor",
     "/api/v1/evidence", "/api/v1/evidence/coverage", "/api/v1/evidence/contradictions",
-    "/api/v1/services",
+    "/api/v1/services", "/api/v1/context/bootstrap",
 ])
 def test_api_v1_routes_return_200(fake_repo, state_dir, route):
     app = _make_app(fake_repo, state_dir)
@@ -217,3 +217,82 @@ def test_dashboard_js_renders_competitive_hero_and_gauge(fake_repo, state_dir):
     assert "competitive-score-big" in js
     assert "competitive-gauge-fill" in js
     assert "pctOf5" in js
+
+
+def test_context_bootstrap_unavailable_when_no_bundle(fake_repo, state_dir):
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    data = client.get("/api/v1/context/bootstrap").json()
+    assert data["available"] is False
+    assert data["status"] == "UNAVAILABLE"
+
+
+def test_context_bootstrap_available_and_matches_schema(fake_repo, state_dir):
+    import subprocess
+    from pipeline import context_builder as cb
+
+    commit = subprocess.run(["git", "-C", str(fake_repo), "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True).stdout.strip()
+    cb.run(fake_repo, state_dir, service_repo_root=fake_repo)
+
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    resp = client.get("/api/v1/context/bootstrap")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["repo_commit"] == commit
+
+    import jsonschema
+    schema = json.loads((PROJECT_ROOT / "contracts" / "project_context_state.schema.json").read_text())
+    # available/live_repo_commit are API-added fields on top of the
+    # contract -- schema allows additionalProperties, so validate as-is.
+    jsonschema.validate(data, schema)
+
+
+def test_context_bootstrap_invalid_json_reports_unavailable(fake_repo, state_dir):
+    (state_dir / "project_context_state.json").write_text("{not valid json")
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    data = client.get("/api/v1/context/bootstrap").json()
+    assert data["available"] is False
+    assert "invalid JSON" in data["reason"]
+
+
+def test_context_bootstrap_schema_violation_reports_unavailable(fake_repo, state_dir):
+    (state_dir / "project_context_state.json").write_text(json.dumps({"schema_version": "1.0"}))
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    data = client.get("/api/v1/context/bootstrap").json()
+    assert data["available"] is False
+    assert data["status"] == "UNAVAILABLE"
+
+
+def test_context_bootstrap_downgrades_to_stale_when_repo_moved_on(fake_repo, state_dir):
+    import subprocess
+    from pipeline import context_builder as cb
+
+    cb.run(fake_repo, state_dir, service_repo_root=fake_repo)
+
+    # Advance the proposal repo by one commit after the bundle was generated.
+    (fake_repo / "NEW_FILE.md").write_text("new")
+    subprocess.run(["git", "add", "-A"], cwd=fake_repo)
+    subprocess.run(["git", "commit", "-q", "-m", "docs: add new file"], cwd=fake_repo)
+
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    data = client.get("/api/v1/context/bootstrap").json()
+    assert data["freshness"] == "STALE"
+    assert data["live_repo_commit"] != data["repo_commit"]
+
+
+def test_context_bootstrap_never_exposes_absolute_paths(fake_repo, state_dir):
+    from pipeline import context_builder as cb
+    cb.run(fake_repo, state_dir, service_repo_root=fake_repo)
+
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    body = client.get("/api/v1/context/bootstrap").text
+    assert str(fake_repo) not in body
+    assert str(state_dir) not in body
+    assert "/home/" not in body

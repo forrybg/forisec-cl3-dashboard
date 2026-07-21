@@ -26,7 +26,20 @@
 #                                 services (8101-8103) + live search evidence
 #                                 for open weaknesses; never blocks the
 #                                 pipeline if those services are down
-#   9. decision_log           -- unaffected by this step, kept last
+#   9. decision_log           -- unaffected by this step, kept last among agents
+#  10. context_builder        -- PHASE 1 Project Context Bundle
+#                                 (project_context_state.json); reads the
+#                                 state files written by steps 1-9 plus a
+#                                 fixed set of canonical proposal documents
+#                                 and safe git metadata; always the LAST
+#                                 project-context producer in this script.
+#
+# NOTE ON ATOMICITY: each step's own state file is written atomically
+# (temp file + os.replace, see agents/common.py::atomic_write_json).
+# This script does NOT make the run AS A WHOLE transactionally atomic --
+# if it fails partway through, some state files will reflect a newer
+# run than others until the next successful pass. Only the write of any
+# single state file (including project_context_state.json) is atomic.
 #
 # Requires FORISEC_REPO_ROOT and FORISEC_STATE_DIR to already be set
 # in the environment (e.g. via systemd EnvironmentFile= or a sourced
@@ -70,5 +83,8 @@ echo "[refresh_agents] service_monitor..."
 
 echo "[refresh_agents] decision_log..."
 "$PYTHON" -m agents.decision_log
+
+echo "[refresh_agents] context_builder..."
+"$PYTHON" -m pipeline.context_builder
 
 echo "[refresh_agents] all agents + evidence pipeline completed."

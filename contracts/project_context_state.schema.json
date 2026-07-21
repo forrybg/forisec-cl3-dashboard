@@ -1,0 +1,249 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "project_context_state.schema.json",
+  "title": "FORISEC Project Context Bundle (PHASE 1)",
+  "description": "Compact, deterministic, read-only bootstrap bundle for a new FORISEC chat. Produced only by pipeline/context_builder.py from already-written canonical sources and agent state files -- never a live scan, never an LLM guess. See that module's docstring for the exact read contract.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "context_model_version",
+    "project_id",
+    "project_title",
+    "topic_id",
+    "repo_commit",
+    "service_commit",
+    "generation_id",
+    "generated_at",
+    "freshness",
+    "canonical_sources",
+    "architecture_summary",
+    "current_state",
+    "work_package_summary",
+    "partner_summary",
+    "budget_summary",
+    "evidence_summary",
+    "evaluation_summary",
+    "critical_findings",
+    "open_decisions",
+    "recent_decisions",
+    "completed_work",
+    "superseded_decisions",
+    "constraints",
+    "forbidden_changes",
+    "next_actions",
+    "retrieval_index",
+    "source_map",
+    "token_estimate"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Version of this JSON schema document itself."
+    },
+    "context_model_version": {
+      "type": "string",
+      "description": "Version of the context_builder.py extraction/summarization logic. Bumped whenever the builder's fields or semantics change -- independent of schema_version."
+    },
+    "project_id": {
+      "type": "string",
+      "description": "Short project identifier, read verbatim from config/canonical_documents.json's 'project' field. Never invented."
+    },
+    "project_title": {
+      "type": "string"
+    },
+    "topic_id": {
+      "type": "string",
+      "description": "Read verbatim from config/canonical_documents.json's 'topic_id' field."
+    },
+    "repo_commit": {
+      "type": ["string", "null"],
+      "description": "Short commit hash of FORISEC_REPO_ROOT (the proposal repository) at generation time, from a safe fixed `git rev-parse --short HEAD` call. Null only if git metadata was unavailable."
+    },
+    "service_commit": {
+      "type": ["string", "null"],
+      "description": "Short commit hash of this dashboard/service repository (forisec-cl3-dashboard) at generation time. Null only if git metadata was unavailable."
+    },
+    "generation_id": {
+      "type": "string",
+      "description": "Unique identifier for this specific bundle generation (UUID4). Changes on every run, even if content is identical."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness": {
+      "type": "string",
+      "enum": ["FRESH", "STALE", "UNAVAILABLE"],
+      "description": "FRESH: every consumed state input's own repo_commit matches repo_commit above, and all required inputs were present and valid. STALE: at least one consumed state input has a different, or missing, repo_commit than the proposal repo's live HEAD, or inputs are known-invalid/mixed. UNAVAILABLE: the bundle itself could not be produced with any confidence (used only for the API's synthetic fallback object, never written by the builder for a successful run of any freshness)."
+    },
+    "canonical_sources": {
+      "type": "array",
+      "description": "One entry per canonical document listed in config/canonical_documents.json -- path, title, required_phase, required flag only. Never the document body.",
+      "items": {
+        "type": "object",
+        "required": ["path", "title", "required_phase", "required"],
+        "properties": {
+          "path": {"type": "string"},
+          "title": {"type": "string"},
+          "required_phase": {"type": ["string", "null"]},
+          "required": {"type": "boolean"}
+        }
+      }
+    },
+    "architecture_summary": {
+      "type": "object",
+      "description": "Deterministic extraction from 00_baseline/FORITECH_SYSTEM_INDEX.md -- headings/section titles only (a table of contents), never full prose.",
+      "required": ["source_path", "section_titles", "available"],
+      "properties": {
+        "source_path": {"type": "string"},
+        "section_titles": {"type": "array", "items": {"type": "string"}},
+        "available": {"type": "boolean"}
+      }
+    },
+    "current_state": {
+      "type": "object",
+      "description": "One-line status per producer agent (freshness/result only, never the full state file).",
+      "required": ["overall_status", "producers"],
+      "properties": {
+        "overall_status": {"type": "string"},
+        "producers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "source_path", "available", "freshness", "result"],
+            "properties": {
+              "name": {"type": "string"},
+              "source_path": {"type": "string"},
+              "available": {"type": "boolean"},
+              "freshness": {"type": "string"},
+              "result": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "work_package_summary": {
+      "type": "array",
+      "description": "Per-WP coverage/status only, derived from proposal_evidence_state.json's criterion_evidence and register_readiness -- never re-derived from raw WP documents.",
+      "items": {"type": "object"}
+    },
+    "partner_summary": {
+      "type": "array",
+      "description": "Per-partner readiness, copied field-for-field from proposal_evidence_state.json's partner_readiness (no reinterpretation).",
+      "items": {"type": "object"}
+    },
+    "budget_summary": {
+      "type": "object",
+      "description": "Top-level totals only from budget_state.json (total_pm, total_eur, any_missing) -- never the full per-WP row breakdown."
+    },
+    "evidence_summary": {
+      "type": "object",
+      "description": "Coverage/result/freshness summary from proposal_evidence_state.json."
+    },
+    "evaluation_summary": {
+      "type": "object",
+      "description": "diagnostic_score, fundability, overall_status, competitive_assessment.score/label from proposal_intelligence_state.json."
+    },
+    "critical_findings": {
+      "type": "array",
+      "description": "Only severity=='critical' findings, deduplicated by canonical_issue_key, from guardian_state.json/evidence_state contradictions. Each entry carries an exact source_path.",
+      "items": {
+        "type": "object",
+        "required": ["canonical_issue_key", "severity", "title", "source_path"],
+        "properties": {
+          "canonical_issue_key": {"type": "string"},
+          "severity": {"type": "string"},
+          "title": {"type": "string"},
+          "source_path": {"type": "string"}
+        }
+      }
+    },
+    "open_decisions": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/decision"}
+    },
+    "recent_decisions": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/decision"}
+    },
+    "completed_work": {
+      "type": "array",
+      "description": "Safely classified recent git commits (hash, date, subject, conventional-commit category only). Never an interpretation of a commit message as a final project decision.",
+      "items": {
+        "type": "object",
+        "required": ["commit", "date", "subject", "category", "source"],
+        "properties": {
+          "commit": {"type": "string"},
+          "date": {"type": "string"},
+          "subject": {"type": "string"},
+          "category": {"type": "string"},
+          "source": {"type": "string"}
+        }
+      }
+    },
+    "superseded_decisions": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/decision"}
+    },
+    "constraints": {
+      "type": "array",
+      "description": "Fixed, hardcoded list of standing engineering constraints for this project (isolation from foritech-os, read-only agents, etc.) -- not derived from any file, documented directly in context_builder.py.",
+      "items": {"type": "string"}
+    },
+    "forbidden_changes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "next_actions": {
+      "type": "array",
+      "description": "Deterministically derived from current_state/critical_findings/evidence gaps (e.g. 'N partner profile(s) empty') -- never a free-form LLM suggestion.",
+      "items": {"type": "string"}
+    },
+    "retrieval_index": {
+      "type": "array",
+      "description": "Flat list of {label, source_path} pairs pointing at every source_path referenced elsewhere in this bundle, for a future PHASE 2 retrieval layer. No content, only pointers.",
+      "items": {
+        "type": "object",
+        "required": ["label", "source_path"],
+        "properties": {
+          "label": {"type": "string"},
+          "source_path": {"type": "string"}
+        }
+      }
+    },
+    "source_map": {
+      "type": "object",
+      "description": "Which top-level bundle field(s) came from which exact source path(s) -- a per-field provenance index.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "token_estimate": {
+      "type": "object",
+      "required": ["characters", "estimated_tokens", "method"],
+      "properties": {
+        "characters": {"type": "integer", "minimum": 0},
+        "estimated_tokens": {"type": "integer", "minimum": 0},
+        "method": {"type": "string"}
+      }
+    }
+  },
+  "definitions": {
+    "decision": {
+      "type": "object",
+      "required": ["id", "title", "date", "status", "question_summary", "conclusion_summary", "follow_up", "source_path"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "date": {"type": ["string", "null"]},
+        "status": {"type": ["string", "null"]},
+        "question_summary": {"type": ["string", "null"]},
+        "conclusion_summary": {"type": ["string", "null"]},
+        "follow_up": {"type": ["string", "null"]},
+        "source_path": {"type": "string"}
+      }
+    }
+  }
+}
