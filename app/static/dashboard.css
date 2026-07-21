@@ -88,3 +88,9 @@ details.criterion-panel[open] summary{margin-bottom:8px}
   padding:10px 14px;margin-bottom:14px;font-size:12px;font-weight:700;letter-spacing:.02em}
 .evidence-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
 .evidence-row:last-child{border-bottom:none}
+
+/* Evidence-gated diagnostic score banner (STEP 2 OF 2) */
+.evidence-gated-banner{background:#1c2a3a;color:#6fb3ff;border:1px solid #2c4a6b;border-radius:8px;
+  padding:10px 14px;margin-bottom:14px;font-size:12px;font-weight:700;letter-spacing:.02em}
+.criterion-ceiling-note{font-size:11px;color:var(--muted);margin:4px 0}
+.affected-sources-list{margin:4px 0 0 0;padding-left:16px;font-size:11px;color:var(--muted)}

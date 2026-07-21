@@ -3,22 +3,29 @@
   "title": "proposal_intelligence_state",
   "type": "object",
   "required": [
-    "schema_version", "scoring_model_version", "agent_id", "repo_commit",
-    "run_timestamp", "mode", "overall_status", "diagnostic_score",
-    "canonical_score", "promotion_status", "section_scores",
+    "schema_version", "scoring_model_version", "evidence_model_version",
+    "evidence_bundle_repo_commit", "evidence_bundle_available", "evidence_bundle_freshness",
+    "agent_id", "repo_commit", "run_timestamp", "mode", "overall_status", "diagnostic_score",
+    "text_completeness_score", "canonical_score", "promotion_status", "section_scores",
     "competitive_assessment", "weaknesses", "evidence_packs", "fix_packs",
     "timeline_summary", "findings"
   ],
   "properties": {
     "schema_version": {"type": "string"},
-    "scoring_model_version": {"type": "string"},
+    "scoring_model_version": {"type": "string", "enum": ["2.0"]},
+    "evidence_model_version": {"type": ["string", "null"]},
+    "evidence_bundle_repo_commit": {"type": ["string", "null"]},
+    "evidence_bundle_available": {"type": "boolean"},
+    "evidence_bundle_freshness": {"type": "string", "enum": ["FRESH", "STALE", "UNAVAILABLE"]},
     "agent_id": {"type": "string"},
     "repo_commit": {"type": ["string", "null"]},
     "run_timestamp": {"type": "string"},
     "mode": {"type": "string", "enum": ["DIAGNOSTIC"]},
-    "overall_status": {"type": "string"},
+    "overall_status": {"type": "string", "enum": ["DIAGNOSTIC_COMPLETE", "BLOCKED", "EVIDENCE_UNAVAILABLE"]},
+    "fundability": {"type": "string", "enum": ["BLOCKED", "NOT READY", "BORDERLINE", "COMPETITIVE", "STRONG"]},
     "diagnostic_score": {
       "type": "object",
+      "description": "PRIMARY score -- evidence-gated (STEP 2 OF 2), computed from proposal_evidence_state.json. Never keyword/word-count derived.",
       "required": ["excellence", "impact", "implementation", "total", "max_total"],
       "properties": {
         "excellence": {"type": "number", "minimum": 0, "maximum": 5},
@@ -28,19 +35,41 @@
         "max_total": {"type": "number"}
       }
     },
+    "text_completeness_score": {
+      "type": "object",
+      "description": "SECONDARY, non-evaluator metric -- the old keyword/word-count signal counter. Never used as diagnostic_score.",
+      "required": ["label", "warning", "excellence", "impact", "implementation", "total", "max_total"],
+      "properties": {
+        "label": {"type": "string", "enum": ["STRUCTURAL_TEXT_COMPLETENESS"]},
+        "warning": {"type": "string", "enum": ["NOT_EVALUATOR_SCORE"]},
+        "total": {"type": "number", "minimum": 0, "maximum": 15}
+      }
+    },
     "canonical_score": {"type": ["number", "null"]},
     "promotion_status": {"type": "string", "enum": ["BLOCKED", "PENDING_REVIEW", "APPROVED"]},
     "section_scores": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["criterion_id", "title", "score", "max_score", "confidence",
-                     "summary", "strengths", "weaknesses", "red_flags",
-                     "critical_fixes", "evidence", "missing_evidence", "evaluated_repo_commit"],
+        "required": [
+          "criterion_id", "score", "max_score", "coverage_ratio", "evidence_quality",
+          "evidence_ceiling", "result_ceiling", "contradiction_penalty", "confidence",
+          "supporting_sources", "missing_evidence", "contradictions", "score_explanation"
+        ],
         "properties": {
+          "criterion_id": {"type": "string", "enum": ["E1", "E2", "I1", "I2I3", "IM1", "IM2IM3"]},
           "score": {"type": "number", "minimum": 0, "maximum": 5},
           "max_score": {"type": "number"},
-          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+          "coverage_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+          "evidence_quality": {"type": "string", "enum": ["NONE", "WEAK", "PARTIAL", "SUFFICIENT", "STRONG"]},
+          "evidence_ceiling": {"type": "number", "enum": [1.0, 2.0, 3.0, 4.0, 4.5]},
+          "result_ceiling": {"type": ["number", "null"], "enum": [2.0, 2.5, 3.0, 3.5, null]},
+          "contradiction_penalty": {"type": "number", "minimum": 0, "maximum": 3.0},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "supporting_sources": {"type": "array"},
+          "missing_evidence": {"type": "array"},
+          "contradictions": {"type": "array"},
+          "score_explanation": {"type": "string"}
         }
       }
     },
@@ -67,7 +96,16 @@
         }
       }
     },
-    "timeline_summary": {"type": "object"},
+    "timeline_summary": {
+      "type": "object",
+      "required": ["baseline", "latest", "total_gain", "snapshot_count",
+                   "repository_change_count", "model_recalculation_count"],
+      "properties": {
+        "total_gain": {"type": "number", "description": "Computed ONLY across REPOSITORY_CHANGE events."},
+        "repository_change_count": {"type": "integer"},
+        "model_recalculation_count": {"type": "integer"}
+      }
+    },
     "findings": {"type": "array"}
   }
 }

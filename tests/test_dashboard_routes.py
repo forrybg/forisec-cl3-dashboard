@@ -71,13 +71,17 @@ def test_evidence_api_reflects_written_bundle(fake_repo, state_dir):
     assert len(contradictions["contradictions"]) == 1
 
 
-def test_evidence_panel_and_heuristic_banner_present_in_html(fake_repo, state_dir):
+def test_evidence_panel_and_evidence_gated_banner_present_in_html(fake_repo, state_dir):
     app = _make_app(fake_repo, state_dir)
     client = TestClient(app)
     html = client.get("/").text
     assert "Proposal Evidence Coverage" in html
-    assert "STRUCTURAL HEURISTIC SCORE" in html
-    assert "NOT EVALUATOR-GRADE" in html
+    # STEP 2 OF 2: the headline banner is now the evidence-gated score,
+    # not the old keyword/word-count "STRUCTURAL HEURISTIC SCORE".
+    assert "EVIDENCE-GATED DIAGNOSTIC SCORE" in html
+    assert "STRUCTURAL HEURISTIC SCORE" not in html
+    assert "Text completeness" in html
+    assert "Not an evaluator score" in html
 
 
 def test_missing_state_reports_unavailable(fake_repo, state_dir):

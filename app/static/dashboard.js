@@ -44,23 +44,68 @@ async function loadAggregate() {
   }
 }
 
+// Result pill colors -- covers the generic OK/REVIEW/WARN/FAIL/CRITICAL
+// vocabulary plus the handful of agent-native status strings (Agent 4's
+// DEGRADED, Agent 5's BLOCKED/DIAGNOSTIC_COMPLETE/EVIDENCE_UNAVAILABLE)
+// that are shown verbatim rather than force-mapped into the 5-value enum.
+const RESULT_PILL = {
+  OK: 'pill-green', DIAGNOSTIC_COMPLETE: 'pill-green',
+  REVIEW: 'pill-yellow',
+  WARN: 'pill-orange', DEGRADED: 'pill-orange',
+  FAIL: 'pill-red', EVIDENCE_UNAVAILABLE: 'pill-red',
+  CRITICAL: 'pill-red', BLOCKED: 'pill-red',
+  AGENT_UNAVAILABLE: 'pill-grey',
+};
+const FRESHNESS_PILL = {FRESH: 'pill-green', STALE: 'pill-orange', UNAVAILABLE: 'pill-grey', UNKNOWN: 'pill-grey'};
+
+// Freshness (recency) and result (content verdict) are computed as two
+// INDEPENDENT values here -- never conflated into one green/red pill.
+// A FRESH Agent 3 with a critical finding must still show CRITICAL, not
+// green, and vice versa.
+function agentResult(kind, s) {
+  if (!s || !s.available) return 'AGENT_UNAVAILABLE';
+  switch (kind) {
+    case 'docs':
+      return ({ON_TRACK: 'OK', ON_TRACK_WITH_DRAFTS: 'REVIEW', WARN: 'WARN', FAIL: 'FAIL'})[s.overall_status] || 'REVIEW';
+    case 'evaluation':
+      return s.status === 'completed' ? 'OK' : 'REVIEW';
+    case 'guardian': {
+      const findings = s.findings || [];
+      if (findings.some(f => f.severity === 'critical')) return 'CRITICAL';
+      return ({PASS: 'OK', WARN: 'WARN', FAIL: 'FAIL'})[s.guardian_status] || 'REVIEW';
+    }
+    case 'supervisor':
+      return s.overall_status || 'REVIEW';  // OK / REVIEW / DEGRADED / CRITICAL, shown verbatim
+    case 'proposalIntelligence':
+      return s.overall_status || 'REVIEW';  // DIAGNOSTIC_COMPLETE / BLOCKED / EVIDENCE_UNAVAILABLE
+    default:
+      return 'REVIEW';
+  }
+}
+
 function renderAgentCards(d) {
   const bodyEl = document.getElementById('agent-body');
   const noteEl = document.getElementById('agent-note');
   const agents = [
-    ['Agent 1 · docs_controller', d.docs],
-    ['Agent 2 · proposal_evaluator', d.evaluation],
-    ['Agent 3 · repository_guardian', d.guardian],
-    ['Agent 4 · project_supervisor', d.supervisor],
-    ['Agent 5 · proposal_intelligence', d.proposalIntelligence],
+    ['Agent 1 — Documentation Controller', 'docs', d.docs],
+    ['Agent 2 — Proposal Evaluator', 'evaluation', d.evaluation],
+    ['Agent 3 — Repository Guardian', 'guardian', d.guardian],
+    ['Agent 4 — Project Supervisor', 'supervisor', d.supervisor],
+    ['Agent 5 — Proposal Intelligence', 'proposalIntelligence', d.proposalIntelligence],
   ];
   noteEl.textContent = 'live';
-  bodyEl.innerHTML = agents.map(([name, s], i) => {
+  bodyEl.innerHTML = agents.map(([name, kind, s], i) => {
     const last = i === agents.length - 1 ? 'border-bottom:none' : '';
     const avail = s && s.available;
-    const pill = avail ? 'pill-green' : 'pill-grey';
-    const label = avail ? (s.freshness || 'OK') : 'AGENT_UNAVAILABLE';
-    return `<div class="row" style="${last}"><span>${escapeHtml(name)}</span><span class="status-pill ${pill}">${label}</span></div>`;
+    const freshness = avail ? (s.freshness || 'UNKNOWN') : 'UNAVAILABLE';
+    const result = agentResult(kind, s);
+    const freshPill = FRESHNESS_PILL[freshness] || 'pill-grey';
+    const resultPill = RESULT_PILL[result] || 'pill-grey';
+    return `<div class="row" style="${last}"><span>${escapeHtml(name)}</span>
+      <span>
+        <span class="status-pill ${freshPill}">${escapeHtml(freshness)}</span>
+        <span class="status-pill ${resultPill}">${escapeHtml(result)}</span>
+      </span></div>`;
   }).join('');
 }
 
@@ -148,6 +193,38 @@ function renderGuardianSummary(d) {
   setText('guardian-sum-scanned', d.scanned_files ?? '—');
 }
 
+// Guardian findings are already deduplicated by canonical_issue_key
+// upstream (agents/repository_guardian.py) -- one logical broken target
+// renders as ONE row here, with occurrence_count and an expandable
+// affected_sources[] list, never as N separate critical rows.
+function guardianFindingsRows(findings) {
+  if (!findings || findings.length === 0) {
+    return '<div class="row" style="border-bottom:none"><span>No findings</span><span class="status-pill pill-green">PASS</span></div>';
+  }
+  return findings.map((f, i) => {
+    const cls = SEV_PILL[f.severity] || 'pill-grey';
+    const last = i === findings.length - 1 ? 'border-bottom:none' : '';
+    const occurrenceCount = f.occurrence_count ?? 1;
+    const sources = f.affected_sources || [];
+    const sourceCount = sources.length || occurrenceCount;
+    const sourcesList = sources.map(s =>
+      `<li>${escapeHtml(s.source_file || '')}${s.raw_reference ? ` <small class="muted">(ref: ${escapeHtml(s.raw_reference)})</small>` : ''}</li>`
+    ).join('') || '<li class="muted">none recorded</li>';
+    return `<details class="criterion-panel" style="${last}">
+      <summary>
+        <span>${escapeHtml(f.target || f.title || f.id)}<br><small class="muted">${escapeHtml(f.title || '')}</small></span>
+        <span>
+          <span class="status-pill ${cls}">${(f.severity || '').toUpperCase()}</span>
+          <span class="status-pill pill-grey">${occurrenceCount}× occurrence · ${sourceCount} source(s)</span>
+        </span>
+      </summary>
+      <div class="muted" style="margin:6px 0;font-size:12px">${escapeHtml(f.description || '')}</div>
+      <b style="font-size:12px">Affected sources</b>
+      <ul class="affected-sources-list">${sourcesList}</ul>
+    </details>`;
+  }).join('');
+}
+
 function renderGuardian(d) {
   const bodyEl = document.getElementById('guardian-body');
   const noteEl = document.getElementById('guardian-note');
@@ -156,8 +233,10 @@ function renderGuardian(d) {
     bodyEl.innerHTML = `<div class="muted">${escapeHtml((d && d.reason) || 'No run recorded yet.')}</div>`;
     return;
   }
-  noteEl.textContent = `${d.guardian_status} · ${d.freshness || 'UNKNOWN'}`;
-  bodyEl.innerHTML = findingsRows(d.findings);
+  const findings = d.findings || [];
+  const occurrenceTotal = findings.reduce((n, f) => n + (f.occurrence_count ?? 1), 0);
+  noteEl.textContent = `${d.guardian_status} · ${d.freshness || 'UNKNOWN'} · ${findings.length} distinct issue(s), ${occurrenceTotal} occurrence(s)`;
+  bodyEl.innerHTML = guardianFindingsRows(findings);
 }
 
 // ── Agent 4 — Project Supervisor ────────────────────────────────────────
@@ -231,20 +310,38 @@ function renderSupervisor(sup) {
   bodyEl.innerHTML = html;
 }
 
-// ── Agent 5 — Detailed Evaluation ───────────────────────────────────────
+// ── Agent 5 — Detailed Evaluation (evidence-gated, STEP 2 OF 2) ─────────
 function renderEval5(d) {
   const noteEl = document.getElementById('eval5-note');
   const criteriaEl = document.getElementById('eval5-criteria');
   if (!d || !d.available) {
     noteEl.textContent = 'AGENT_UNAVAILABLE';
-    ['eval5-total','eval5-canonical','eval5-promotion','eval5-fundability',
+    ['eval5-total','eval5-overall-result','eval5-coverage','eval5-contradiction-count',
+     'eval5-missing-count','eval5-canonical','eval5-promotion','eval5-fundability',
      'eval5-excellence','eval5-impact','eval5-implementation'].forEach(id => setText(id, '—'));
+    setText('eval5-text-completeness', 'Text completeness: — · Not an evaluator score');
     criteriaEl.innerHTML = `<div class="muted">${escapeHtml((d && d.reason) || 'No run recorded yet.')}</div>`;
     return;
   }
-  noteEl.textContent = `${d.mode} · ${d.freshness || 'UNKNOWN'}`;
+  noteEl.textContent = `${d.mode} · ${d.evidence_bundle_freshness || 'UNKNOWN'}`;
   const ds = d.diagnostic_score || {};
+  const sections = d.section_scores || [];
+
   setText('eval5-total', `${ds.total ?? '—'} / ${ds.max_total ?? 15}`);
+  setText('eval5-overall-result', d.overall_status || 'UNKNOWN');
+  document.getElementById('eval5-overall-result').className = 'value status-pill ' + (RESULT_PILL[d.overall_status] || 'pill-grey');
+
+  const avgCoverage = sections.length
+    ? sections.reduce((sum, s) => sum + (s.coverage_ratio || 0), 0) / sections.length : 0;
+  setText('eval5-coverage', `${Math.round(avgCoverage * 100)}%`);
+
+  const contradictionCount = sections.reduce((n, s) => n + ((s.contradictions || []).length), 0);
+  setText('eval5-contradiction-count', contradictionCount);
+  document.getElementById('eval5-contradiction-count').style.color = contradictionCount > 0 ? 'var(--red)' : 'var(--green)';
+
+  const missingCount = sections.reduce((n, s) => n + ((s.missing_evidence || []).length), 0);
+  setText('eval5-missing-count', missingCount);
+
   setText('eval5-canonical', d.canonical_score === null || d.canonical_score === undefined
     ? 'NOT APPROVED' : `${d.canonical_score} / 15`);
   setText('eval5-promotion', d.promotion_status || 'UNKNOWN');
@@ -259,21 +356,29 @@ function renderEval5(d) {
     COMPETITIVE: 'var(--orange)', STRONG: 'var(--green)'};
   document.getElementById('eval5-fundability').style.color = fundColor[d.fundability] || 'var(--muted)';
 
-  const sections = d.section_scores || [];
+  const tc = d.text_completeness_score || {};
+  setText('eval5-text-completeness', `Text completeness: ${tc.total ?? '—'} / ${tc.max_total ?? 15} · Not an evaluator score`);
+
   criteriaEl.innerHTML = sections.map(s => {
-    const listItems = (arr) => (arr && arr.length) ? arr.map(x => `<li>${escapeHtml(x)}</li>`).join('') : '<li class="muted">none</li>';
-    const evidenceItems = (s.evidence || []).map(e =>
-      `<li>${escapeHtml(e.basis)} <small class="muted">(${escapeHtml(e.file)}, ${escapeHtml(e.evidence_type)})</small></li>`
-    ).join('') || '<li class="muted">none</li>';
+    const listItems = (arr, render) => (arr && arr.length) ? arr.map(render).join('') : '<li class="muted">none</li>';
+    const missingItems = listItems(s.missing_evidence, m => `<li>${escapeHtml(m.label || m.key || '?')} <small class="muted">(${escapeHtml(m.reason || '')})</small></li>`);
+    const contradictionItems = listItems(s.contradictions, c => `<li><span class="status-pill ${SEV_PILL[c.severity] || 'pill-grey'}">${escapeHtml((c.severity||'').toUpperCase())}</span> ${escapeHtml(c.reason || c.claim || c.id || '')}</li>`);
+    const sourceItems = listItems(s.supporting_sources, src => `<li>${escapeHtml(src.path || src.state_source || src.key || '?')}</li>`);
+    const qCls = QUALITY_PILL[s.evidence_quality] || 'pill-grey';
     return `<details class="criterion-panel">
       <summary><span>${escapeHtml(s.criterion_id)} — ${escapeHtml(s.title)}</span>
         <span class="status-pill ${s.score >= 3.5 ? 'pill-green' : (s.score >= 2 ? 'pill-yellow' : 'pill-red')}">${s.score} / ${s.max_score} · conf ${s.confidence}</span></summary>
-      <div class="muted" style="margin-bottom:8px">${escapeHtml(s.summary)}</div>
-      <b style="font-size:12px">Strengths</b><ul style="font-size:12px">${listItems(s.strengths)}</ul>
-      <b style="font-size:12px">Weaknesses</b><ul style="font-size:12px">${listItems(s.weaknesses)}</ul>
-      <b style="font-size:12px">Red flags</b><ul style="font-size:12px">${listItems(s.red_flags)}</ul>
-      <b style="font-size:12px">Critical fixes</b><ul style="font-size:12px">${listItems(s.critical_fixes)}</ul>
-      <b style="font-size:12px">Evidence</b><ul style="font-size:12px">${evidenceItems}</ul>
+      <div class="criterion-ceiling-note">${escapeHtml(s.score_explanation || '')}</div>
+      <div class="agg-grid" style="margin:8px 0">
+        <div><div class="label">Coverage</div><div class="value">${Math.round((s.coverage_ratio||0)*100)}%</div></div>
+        <div><div class="label">Evidence quality</div><div class="value status-pill ${qCls}">${escapeHtml(s.evidence_quality||'—')}</div></div>
+        <div><div class="label">Evidence ceiling</div><div class="value">${s.evidence_ceiling ?? '—'}/5</div></div>
+        <div><div class="label">Result ceiling</div><div class="value">${s.result_ceiling ?? 'none'}</div></div>
+        <div><div class="label">Contradiction penalty</div><div class="value">-${s.contradiction_penalty ?? 0}</div></div>
+      </div>
+      <b style="font-size:12px">Missing evidence (${(s.missing_evidence||[]).length})</b><ul class="affected-sources-list">${missingItems}</ul>
+      <b style="font-size:12px">Contradictions (${(s.contradictions||[]).length})</b><ul class="affected-sources-list">${contradictionItems}</ul>
+      <b style="font-size:12px">Supporting sources (${(s.supporting_sources||[]).length})</b><ul class="affected-sources-list">${sourceItems}</ul>
     </details>`;
   }).join('') || '<div class="muted">No criteria scored yet.</div>';
 }
@@ -343,13 +448,26 @@ function renderImprovementLoop(d) {
 }
 
 // ── Agent 5 — Evaluation Timeline ───────────────────────────────────────
+// STEP 2 OF 2: the trend line is drawn ONLY through REPOSITORY_CHANGE
+// snapshots -- a MODEL_RECALCULATION (same commit, new scoring model,
+// e.g. this very deploy replacing keyword scoring with evidence-gated
+// scoring) must never be plotted as if the proposal itself improved or
+// regressed. Recalculation events are listed as a separate annotation.
 function renderMiniChart(records) {
-  if (!records || records.length < 2) {
-    return '<div class="muted">Not enough snapshots yet for a trend chart (need at least 2).</div>';
+  const repoChangeRecords = (records || []).filter(r => r.event_type === 'REPOSITORY_CHANGE');
+  const recalcRecords = (records || []).filter(r => r.event_type === 'MODEL_RECALCULATION');
+
+  if (repoChangeRecords.length < 2) {
+    const base = '<div class="muted">Not enough REPOSITORY_CHANGE snapshots yet for a trend chart (need at least 2).</div>';
+    const recalcNote = recalcRecords.length
+      ? `<div class="muted" style="margin-top:6px;font-size:11px">⚠ ${recalcRecords.length} MODEL_RECALCULATION snapshot(s) excluded from the trend by design (not proposal improvement).</div>`
+      : '';
+    return base + recalcNote;
   }
+
   const w = 600, h = 160, pad = 24;
   const maxVal = 15;
-  const n = records.length;
+  const n = repoChangeRecords.length;
   const xFor = i => pad + (i * (w - 2 * pad)) / (n - 1);
   const yFor = v => h - pad - (v / maxVal) * (h - 2 * pad);
 
@@ -362,13 +480,21 @@ function renderMiniChart(records) {
 
   let svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;background:#12131a;border-radius:8px">`;
   series.forEach(s => {
-    const points = records.map((r, i) => `${xFor(i)},${yFor(r[s.key] || 0)}`).join(' ');
+    const points = repoChangeRecords.map((r, i) => `${xFor(i)},${yFor(r[s.key] || 0)}`).join(' ');
     svg += `<polyline points="${points}" fill="none" stroke="${s.color}" stroke-width="2"/>`;
+  });
+  repoChangeRecords.forEach((r, i) => {
+    svg += `<circle cx="${xFor(i)}" cy="${yFor(r.total || 0)}" r="3" fill="#9d7bff"/>`;
   });
   svg += '</svg>';
 
   const legend = series.map(s => `<span style="color:${s.color};margin-right:12px">● ${s.label}</span>`).join('');
-  return svg + `<div style="margin-top:8px;font-size:11px">${legend}</div>`;
+  const recalcNote = recalcRecords.length
+    ? `<div class="muted" style="margin-top:6px;font-size:11px">⚠ MODEL_RECALCULATION annotation(s) (excluded from trend): ${
+        recalcRecords.map(r => `v${escapeHtml(r.scoring_model_version || '?')} @ ${escapeHtml((r.repo_commit || '?'))} → total ${r.total}`).join('; ')
+      }</div>`
+    : '';
+  return svg + `<div style="margin-top:8px;font-size:11px">${legend}</div>` + recalcNote;
 }
 
 function renderTimeline(d, historyResp) {
@@ -378,17 +504,18 @@ function renderTimeline(d, historyResp) {
 
   if (!ts || !ts.latest) {
     noteEl.textContent = (d && d.available) ? 'no snapshots yet' : 'AGENT_UNAVAILABLE';
-    ['timeline-baseline','timeline-latest','timeline-gain','timeline-count','timeline-commit'].forEach(id => setText(id, '—'));
+    ['timeline-baseline','timeline-latest','timeline-gain','timeline-count','timeline-event-split','timeline-commit'].forEach(id => setText(id, '—'));
     chartEl.innerHTML = '<div class="muted">No timeline data yet.</div>';
     return;
   }
   noteEl.textContent = `${ts.snapshot_count} snapshot(s)`;
-  setText('timeline-baseline', `${ts.baseline.total} / 15`);
+  setText('timeline-baseline', ts.baseline ? `${ts.baseline.total} / 15` : 'n/a (no REPOSITORY_CHANGE yet)');
   setText('timeline-latest', `${ts.latest.total} / 15`);
   const gain = ts.total_gain;
   setText('timeline-gain', `${gain > 0 ? '+' : ''}${gain}`);
   document.getElementById('timeline-gain').style.color = gain > 0 ? 'var(--green)' : (gain < 0 ? 'var(--red)' : 'var(--muted)');
   setText('timeline-count', ts.snapshot_count);
+  setText('timeline-event-split', `${ts.repository_change_count ?? '—'} / ${ts.model_recalculation_count ?? '—'}`);
   setText('timeline-commit', ts.latest.repo_commit || '—');
 
   const records = (historyResp && historyResp.records) || [];

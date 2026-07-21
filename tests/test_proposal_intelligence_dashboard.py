@@ -121,7 +121,16 @@ def test_dashboard_js_renders_all_four_agent5_panels():
 
 def test_dashboard_js_includes_agent5_in_status_cards():
     js = (PROJECT_ROOT / "app" / "static" / "dashboard.js").read_text(encoding="utf-8")
-    assert "Agent 5 · proposal_intelligence" in js
+    assert "Agent 5" in js and "proposalIntelligence" in js
+
+
+def test_dashboard_js_status_cards_show_freshness_and_result_separately():
+    # STEP 2 OF 2: Agent Status Cards must never collapse to one green pill
+    # just because a state file is FRESH -- freshness and result render as
+    # two independent badges.
+    js = (PROJECT_ROOT / "app" / "static" / "dashboard.js").read_text(encoding="utf-8")
+    assert "function agentResult(" in js
+    assert "FRESHNESS_PILL" in js and "RESULT_PILL" in js
 
 
 def test_dashboard_js_never_labels_canonical_score_as_official():

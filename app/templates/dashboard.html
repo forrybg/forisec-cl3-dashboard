@@ -110,19 +110,24 @@
   <!-- Agent 5 — Detailed Evaluation -->
   <div class="card" id="eval5-card">
     <div class="section-title">🧠 Agent 5 — Detailed Evaluation <span class="note" id="eval5-note">loading…</span></div>
-    <div class="heuristic-banner" id="eval5-heuristic-banner">
-      STRUCTURAL HEURISTIC SCORE — NOT EVALUATOR-GRADE<br>
-      <span style="font-weight:normal">Keyword/word-count completeness signal only. See Proposal Evidence Coverage above for what is actually missing/contradicted. STEP 2 replaces this with an evidence-gated model.</span>
+    <div class="evidence-gated-banner" id="eval5-evidence-gated-banner">
+      EVIDENCE-GATED DIAGNOSTIC SCORE
+      <span style="font-weight:normal">— computed from proposal_evidence_state.json (coverage, evidence quality, contradictions). Never keyword/word-count derived.</span>
     </div>
-    <div class="agg-grid" id="eval5-summary" style="margin-bottom:16px">
-      <div><div class="label">Diagnostic total /15</div><div id="eval5-total" class="value">—</div></div>
-      <div><div class="label">Canonical score /15</div><div id="eval5-canonical" class="value">—</div></div>
-      <div><div class="label">Promotion status</div><div id="eval5-promotion" class="value">—</div></div>
+    <div class="agg-grid" id="eval5-summary" style="margin-bottom:10px">
+      <div><div class="label">Diagnostic score /15</div><div id="eval5-total" class="value">—</div></div>
+      <div><div class="label">Overall result</div><div id="eval5-overall-result" class="value">—</div></div>
+      <div><div class="label">Evidence coverage</div><div id="eval5-coverage" class="value">—</div></div>
+      <div><div class="label">Contradictions</div><div id="eval5-contradiction-count" class="value">—</div></div>
+      <div><div class="label">Missing evidence</div><div id="eval5-missing-count" class="value">—</div></div>
+      <div><div class="label">Promotion</div><div id="eval5-promotion" class="value">—</div></div>
       <div><div class="label">Fundability</div><div id="eval5-fundability" class="value">—</div></div>
+      <div><div class="label">Canonical score /15</div><div id="eval5-canonical" class="value">—</div></div>
       <div><div class="label">Excellence</div><div id="eval5-excellence" class="value">—</div></div>
       <div><div class="label">Impact</div><div id="eval5-impact" class="value">—</div></div>
       <div><div class="label">Implementation</div><div id="eval5-implementation" class="value">—</div></div>
     </div>
+    <div class="muted" id="eval5-text-completeness" style="font-size:12px;margin-bottom:14px">Text completeness: — · Not an evaluator score</div>
     <div id="eval5-criteria"><div class="muted">Loading criteria…</div></div>
   </div>
 
@@ -160,10 +165,11 @@
   <div class="card" id="timeline-card">
     <div class="section-title">📈 Evaluation Timeline <span class="note" id="timeline-note">loading…</span></div>
     <div class="agg-grid" style="margin-bottom:16px">
-      <div><div class="label">Baseline total</div><div id="timeline-baseline" class="value">—</div></div>
+      <div><div class="label">Baseline total (REPOSITORY_CHANGE)</div><div id="timeline-baseline" class="value">—</div></div>
       <div><div class="label">Latest total</div><div id="timeline-latest" class="value">—</div></div>
-      <div><div class="label">Total gain/loss</div><div id="timeline-gain" class="value">—</div></div>
+      <div><div class="label">Total gain/loss (REPOSITORY_CHANGE only)</div><div id="timeline-gain" class="value">—</div></div>
       <div><div class="label">Snapshots</div><div id="timeline-count" class="value">—</div></div>
+      <div><div class="label">Repository changes / model recalcs</div><div id="timeline-event-split" class="value">—</div></div>
       <div><div class="label">Latest commit</div><div id="timeline-commit" class="value mono">—</div></div>
     </div>
     <div id="timeline-chart"></div>
