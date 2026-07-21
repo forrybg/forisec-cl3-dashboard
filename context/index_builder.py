@@ -47,6 +47,7 @@ Usage: python -m context.index_builder
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -69,6 +70,16 @@ INDEX_MODEL_VERSION_LEXICAL = "lexical-fts5-v1"
 INDEX_MODEL_VERSION_SEMANTIC = "lexical-fts5-v1+embeddings-bge-m3-v1"
 
 ALLOWED_SOURCE_SUFFIXES = {".md", ".txt"}
+
+# Repo map scope: this dashboard SERVICE's own codebase (never the
+# proposal repo -- that is what `sources`/`chunks` already cover). This
+# exists so a brand-new chat can orient on "what file does what" in
+# forisec-cl3-dashboard itself with one query, instead of grepping.
+REPO_MAP_SOURCE_DIRS = ("app", "agents", "pipeline", "context")
+REPO_MAP_EXTRA_FILES = (
+    "scripts/refresh_agents.sh",
+    "contracts/project_context_state.schema.json",
+)
 
 MAX_CHUNK_TOKENS = 450
 MIN_CHUNK_TOKENS = 300
@@ -231,6 +242,73 @@ def _chunk_document(text: str) -> list[tuple[str | None, str, int, str]]:
     return [(h, sk, i, t) for i, (h, sk, t) in enumerate(raw_chunks)]
 
 
+def _summarize_python_module(text: str) -> tuple[str | None, list[str], list[str]]:
+    """Deterministic AST-based extraction -- never an LLM guess. Returns
+    (first line of the module docstring or None, sorted top-level
+    function names, sorted top-level class names). A file that fails to
+    parse (should not happen for anything actually imported by the
+    service) yields (None, [], []) rather than raising -- the repo map
+    is a best-effort aid, never a build-blocking requirement."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None, [], []
+    docstring = ast.get_docstring(tree)
+    summary = docstring.strip().splitlines()[0].strip() if docstring else None
+    functions = sorted(
+        node.name for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
+    )
+    classes = sorted(node.name for node in tree.body if isinstance(node, ast.ClassDef))
+    return summary, functions, classes
+
+
+def _scan_repo_map(service_repo_root: Path) -> list[dict]:
+    """Deterministic directory walk of this SERVICE's own codebase
+    (REPO_MAP_SOURCE_DIRS + REPO_MAP_EXTRA_FILES) -- never the proposal
+    repo, which is already covered by `sources`/`chunks`. One row per
+    file: path, kind, summary, top-level functions/classes (Python
+    only), line count. Never fabricates a summary -- a file with no
+    docstring simply has summary=None."""
+    rows = []
+    for rel_dir in REPO_MAP_SOURCE_DIRS:
+        dir_path = service_repo_root / rel_dir
+        if not dir_path.is_dir():
+            continue
+        for file_path in sorted(dir_path.rglob("*.py")):
+            if "__pycache__" in file_path.parts:
+                continue
+            try:
+                text = file_path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            rel_path = file_path.relative_to(service_repo_root).as_posix()
+            summary, functions, classes = _summarize_python_module(text)
+            rows.append({
+                "path": rel_path, "kind": "python_module", "summary": summary,
+                "top_level_functions": functions, "top_level_classes": classes,
+                "line_count": text.count("\n") + 1,
+            })
+
+    for rel_path_str in REPO_MAP_EXTRA_FILES:
+        file_path = service_repo_root / rel_path_str
+        if not file_path.exists():
+            continue
+        try:
+            text = file_path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        kind = "schema" if file_path.suffix == ".json" else "script"
+        first_line = next((ln.strip().lstrip("#!").strip() for ln in text.splitlines() if ln.strip()), None)
+        rows.append({
+            "path": rel_path_str, "kind": kind, "summary": first_line,
+            "top_level_functions": [], "top_level_classes": [],
+            "line_count": text.count("\n") + 1,
+        })
+
+    return rows
+
+
 def _create_schema(conn: sqlite3.Connection) -> None:
     conn.executescript("""
         CREATE TABLE meta (
@@ -275,6 +353,17 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         CREATE VIRTUAL TABLE chunks_fts USING fts5(
             text, heading,
             content='chunks', content_rowid='rowid'
+        );
+
+        CREATE TABLE repo_map (
+            path TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            summary TEXT,
+            top_level_functions TEXT NOT NULL,
+            top_level_classes TEXT NOT NULL,
+            line_count INTEGER NOT NULL,
+            service_commit TEXT,
+            generated_at TEXT NOT NULL
         );
     """)
 
@@ -405,6 +494,20 @@ def build(repo_root: Path, state_dir: Path, service_repo_root: Path | None = Non
             (SCHEMA_VERSION, index_model_version, project_id, proposal_repo_commit,
              service_commit, generated_at, generation_id, len(source_rows), len(chunk_rows)),
         )
+
+        # Repo map: deterministic catalog of this SERVICE's own codebase
+        # (never the proposal repo), rebuilt fresh every generation same
+        # as everything else in this atomic build.
+        for repo_map_row in _scan_repo_map(service_repo_root):
+            conn.execute(
+                "INSERT INTO repo_map (path, kind, summary, top_level_functions, "
+                "top_level_classes, line_count, service_commit, generated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (repo_map_row["path"], repo_map_row["kind"], repo_map_row["summary"],
+                 json.dumps(repo_map_row["top_level_functions"]),
+                 json.dumps(repo_map_row["top_level_classes"]),
+                 repo_map_row["line_count"], service_commit, generated_at),
+            )
 
         conn.commit()
 

@@ -55,6 +55,7 @@ SECTION_TOKEN_BUDGET = 2500
 SEARCH_TOKEN_BUDGET = 3000
 SOURCE_TOKEN_BUDGET = 3000
 SNIPPET_TOKEN_BUDGET = 500
+REPO_MAP_TOKEN_BUDGET = 2500
 
 CHARS_PER_TOKEN = 4
 
@@ -403,5 +404,56 @@ def get_source(state_dir: Path, repo_root: Path, path: str) -> dict:
     while result["token_estimate"] > SOURCE_TOKEN_BUDGET and result["chunks"]:
         result["chunks"].pop()
         result["truncated"] = True
+        result["token_estimate"] = _estimate_tokens(result)
+    return result
+
+
+# ── repo map (this SERVICE's own codebase, never the proposal repo) ────
+
+def get_repo_map(state_dir: Path, repo_root: Path) -> dict:
+    """Deterministic catalog of forisec-cl3-dashboard's own source tree
+    (path, kind, summary, top-level functions/classes, line count) --
+    built once per context.db generation by context/index_builder.py's
+    _scan_repo_map(). Exists so a brand-new chat can see "what file does
+    what" in one query instead of grepping the whole tree."""
+    db_path = _context_db_path(state_dir)
+    if not db_path.exists():
+        return _envelope(state_dir, repo_root, {"files": []})
+
+    try:
+        conn = _open_db_readonly(db_path)
+    except sqlite3.OperationalError:
+        return _envelope(state_dir, repo_root, {"files": []})
+
+    try:
+        try:
+            rows = conn.execute(
+                "SELECT path, kind, summary, top_level_functions, top_level_classes, "
+                "line_count FROM repo_map ORDER BY path"
+            ).fetchall()
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError:
+        return _envelope(state_dir, repo_root, {"files": []})
+
+    files = []
+    for path, kind, summary, functions_json, classes_json, line_count in rows:
+        try:
+            functions = json.loads(functions_json) if functions_json else []
+        except (TypeError, json.JSONDecodeError):
+            functions = []
+        try:
+            classes = json.loads(classes_json) if classes_json else []
+        except (TypeError, json.JSONDecodeError):
+            classes = []
+        files.append({
+            "path": path, "kind": kind, "summary": summary,
+            "top_level_functions": functions, "top_level_classes": classes,
+            "line_count": line_count,
+        })
+
+    result = _envelope(state_dir, repo_root, {"files": files})
+    while result["token_estimate"] > REPO_MAP_TOKEN_BUDGET and result["files"]:
+        result["files"].pop()
         result["token_estimate"] = _estimate_tokens(result)
     return result

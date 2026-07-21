@@ -287,6 +287,18 @@ def api_context_source(path: str):
         return {"available": False, "error": e.code, "reason": e.message}
 
 
+@app.get("/api/v1/context/repo-map")
+def api_context_repo_map():
+    """Deterministic catalog of THIS SERVICE's own codebase (app/,
+    agents/, pipeline/, context/, plus refresh_agents.sh and the
+    context bundle schema) -- path, kind, summary (from each module's
+    own docstring/first line), top-level functions/classes, line count.
+    Never the proposal repo (that is `sources`/`chunks`). Built fresh
+    every context.db generation by context/index_builder.py's
+    _scan_repo_map(); read-only here, never rebuilt on request."""
+    return context_retrieval.get_repo_map(STATE_DIR, REPO_ROOT)
+
+
 # Bumped whenever a static asset (dashboard.css / dashboard.js) changes,
 # so a browser tab left open across a deploy is forced to refetch instead
 # of silently rendering with stale cached CSS/JS.

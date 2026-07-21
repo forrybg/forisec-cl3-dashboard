@@ -62,6 +62,10 @@ ALLOWED_TOP_LEVEL_IMPORTS = {
     # source/text hashing and embedding (de)serialization; "context" is
     # this project's own new top-level package.
     "context", "sqlite3", "hashlib", "struct",
+    # ast: deterministic (non-LLM) repo-map extraction in
+    # context/index_builder.py -- reads this service's own .py files'
+    # docstrings/top-level def names via the standard library parser.
+    "ast",
 }
 
 
