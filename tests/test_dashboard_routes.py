@@ -42,12 +42,42 @@ def test_health_returns_200(fake_repo, state_dir):
 @pytest.mark.parametrize("route", [
     "/api/v1/summary", "/api/v1/docs", "/api/v1/evaluation",
     "/api/v1/guardian", "/api/v1/supervisor",
+    "/api/v1/evidence", "/api/v1/evidence/coverage", "/api/v1/evidence/contradictions",
 ])
 def test_api_v1_routes_return_200(fake_repo, state_dir, route):
     app = _make_app(fake_repo, state_dir)
     client = TestClient(app)
     resp = client.get(route)
     assert resp.status_code == 200
+
+
+def test_evidence_api_reflects_written_bundle(fake_repo, state_dir):
+    (state_dir / "proposal_evidence_state.json").write_text(json.dumps({
+        "schema_version": "1.0", "evidence_model_version": "1.0", "repo_commit": "x",
+        "run_timestamp": "x", "freshness": "FRESH", "result": "WARN",
+        "source_states": {}, "criterion_evidence": [], "cross_document_checks": [],
+        "contradictions": [{"id": "c1", "criterion": "IM1", "severity": "high", "claim_source": "a",
+                            "claim": "x", "contradicting_source": "b", "reason": "r",
+                            "affected_files": [], "repo_commit": "x"}],
+        "missing_evidence": [], "guardian_summary": {}, "partner_readiness": [],
+        "budget_readiness": {}, "resource_readiness": {}, "register_readiness": {},
+        "technical_readiness": {}, "coverage_summary": {"contraction_count": 1}, "findings": [],
+    }))
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    evidence = client.get("/api/v1/evidence").json()
+    assert evidence["result"] == "WARN"
+    contradictions = client.get("/api/v1/evidence/contradictions").json()
+    assert len(contradictions["contradictions"]) == 1
+
+
+def test_evidence_panel_and_heuristic_banner_present_in_html(fake_repo, state_dir):
+    app = _make_app(fake_repo, state_dir)
+    client = TestClient(app)
+    html = client.get("/").text
+    assert "Proposal Evidence Coverage" in html
+    assert "STRUCTURAL HEURISTIC SCORE" in html
+    assert "NOT EVALUATOR-GRADE" in html
 
 
 def test_missing_state_reports_unavailable(fake_repo, state_dir):

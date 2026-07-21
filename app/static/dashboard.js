@@ -421,6 +421,61 @@ function renderDecisions(decisionsD) {
   bodyEl.innerHTML = decisionRows(entries);
 }
 
+
+const READINESS_PILL = {OK: 'pill-green', REVIEW: 'pill-yellow', WARN: 'pill-orange', FAIL: 'pill-red', CRITICAL: 'pill-red'};
+const QUALITY_PILL = {STRONG: 'pill-green', SUFFICIENT: 'pill-green', PARTIAL: 'pill-yellow', WEAK: 'pill-orange', NONE: 'pill-red'};
+
+function renderEvidenceCoverage(d) {
+  const noteEl = document.getElementById('evidence-note');
+  if (!d || !d.available) {
+    noteEl.textContent = d && d.reason ? d.reason : '(unavailable — evidence_assembler has not run yet)';
+    document.getElementById('evidence-coverage-body').innerHTML = '<div class="muted">No evidence bundle available yet.</div>';
+    return;
+  }
+  noteEl.textContent = 'live';
+
+  setText('evidence-result', d.result || '—');
+  const resultEl = document.getElementById('evidence-result');
+  if (resultEl) resultEl.className = 'value status-pill ' + (READINESS_PILL[d.result] || 'pill-grey');
+  setText('evidence-freshness', d.freshness || '—');
+
+  const budget = d.budget_readiness || {};
+  setText('evidence-budget', budget.reconciled ? 'RECONCILED' : (budget.available ? 'PARTIAL' : 'UNAVAILABLE'));
+
+  const partners = d.partner_readiness || [];
+  const partnersOk = partners.filter(p => p.result === 'OK').length;
+  setText('evidence-partner', `${partnersOk}/${partners.length} profiles present`);
+
+  const registers = d.register_readiness || {};
+  const regEntries = Object.values(registers).filter(r => r && typeof r === 'object' && 'exists_non_empty' in r);
+  const regOk = regEntries.filter(r => r.exists_non_empty).length;
+  setText('evidence-register', `${regOk}/${regEntries.length} registers present`);
+
+  const technical = d.technical_readiness || {};
+  const techEntries = Object.values(technical).filter(r => r && typeof r === 'object' && 'exists_non_empty' in r);
+  const techOk = techEntries.filter(r => r.exists_non_empty).length;
+  setText('evidence-technical', `${techOk}/${techEntries.length} present`);
+
+  const cov = d.coverage_summary || {};
+  setText('evidence-contradictions', cov.contradiction_count ?? '—');
+  document.getElementById('evidence-contradictions').style.color = (cov.contradiction_count > 0) ? 'var(--red)' : 'var(--green)';
+  setText('evidence-missing', cov.documents_missing ?? '—');
+
+  const criteria = d.criterion_evidence || [];
+  document.getElementById('evidence-coverage-body').innerHTML = criteria.map(ce => {
+    const pct = Math.round((ce.coverage_ratio || 0) * 100);
+    const qCls = QUALITY_PILL[ce.evidence_quality] || 'pill-grey';
+    const rCls = READINESS_PILL[ce.result] || 'pill-grey';
+    return `<div class="evidence-row">
+      <span><b>${escapeHtml(ce.criterion_id)}</b> — coverage ${pct}%</span>
+      <span>
+        <span class="status-pill ${qCls}">${escapeHtml(ce.evidence_quality)}</span>
+        <span class="status-pill ${rCls}">${escapeHtml(ce.result)}</span>
+      </span>
+    </div>`;
+  }).join('') || '<div class="muted">No criteria evaluated.</div>';
+}
+
 async function loadAll() {
   const d = await loadAggregate();
   if (!d) return;
@@ -444,6 +499,12 @@ async function loadAll() {
   renderSupervisorSummary(d.supervisor);
   renderSupervisor(d.supervisor);
   renderDecisions(d.decisions);
+
+  let evidence = {available: false};
+  try {
+    evidence = await fetch('/api/v1/evidence/coverage').then(r => r.json());
+  } catch (e) { /* keep default unavailable */ }
+  renderEvidenceCoverage(evidence);
 
   renderEval5(eval5);
   renderCompetitive(eval5);

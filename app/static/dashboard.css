@@ -82,3 +82,9 @@ details.criterion-panel[open] summary{margin-bottom:8px}
 .budget-table col.col-status{width:auto}
 .budget-table .status-pill{margin-left:10px;white-space:nowrap}
 .budget-table .draft-flag{margin-left:10px}
+
+/* Evidence coverage panel + Agent 5 heuristic-score disclaimer (STEP 1 OF 2) */
+.heuristic-banner{background:#3a2410;color:var(--orange);border:1px solid #6b3d16;border-radius:8px;
+  padding:10px 14px;margin-bottom:14px;font-size:12px;font-weight:700;letter-spacing:.02em}
+.evidence-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.evidence-row:last-child{border-bottom:none}

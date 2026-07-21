@@ -91,9 +91,29 @@
     <div id="supervisor-body"><div class="muted">Loading supervisor state…</div></div>
   </div>
 
+  <!-- Proposal Evidence Coverage -->
+  <div class="card" id="evidence-card">
+    <div class="section-title">🧩 Proposal Evidence Coverage <span class="note" id="evidence-note">loading…</span></div>
+    <div class="agg-grid" id="evidence-summary" style="margin-bottom:16px">
+      <div><div class="label">Overall result</div><div id="evidence-result" class="value">—</div></div>
+      <div><div class="label">Freshness</div><div id="evidence-freshness" class="value">—</div></div>
+      <div><div class="label">Budget readiness</div><div id="evidence-budget" class="value">—</div></div>
+      <div><div class="label">Partner readiness</div><div id="evidence-partner" class="value">—</div></div>
+      <div><div class="label">Register readiness</div><div id="evidence-register" class="value">—</div></div>
+      <div><div class="label">Technical readiness</div><div id="evidence-technical" class="value">—</div></div>
+      <div><div class="label">Contradictions</div><div id="evidence-contradictions" class="value">—</div></div>
+      <div><div class="label">Missing evidence items</div><div id="evidence-missing" class="value">—</div></div>
+    </div>
+    <div id="evidence-coverage-body"><div class="muted">Loading criterion coverage…</div></div>
+  </div>
+
   <!-- Agent 5 — Detailed Evaluation -->
   <div class="card" id="eval5-card">
     <div class="section-title">🧠 Agent 5 — Detailed Evaluation <span class="note" id="eval5-note">loading…</span></div>
+    <div class="heuristic-banner" id="eval5-heuristic-banner">
+      STRUCTURAL HEURISTIC SCORE — NOT EVALUATOR-GRADE<br>
+      <span style="font-weight:normal">Keyword/word-count completeness signal only. See Proposal Evidence Coverage above for what is actually missing/contradicted. STEP 2 replaces this with an evidence-gated model.</span>
+    </div>
     <div class="agg-grid" id="eval5-summary" style="margin-bottom:16px">
       <div><div class="label">Diagnostic total /15</div><div id="eval5-total" class="value">—</div></div>
       <div><div class="label">Canonical score /15</div><div id="eval5-canonical" class="value">—</div></div>

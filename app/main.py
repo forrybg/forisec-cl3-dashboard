@@ -129,10 +129,49 @@ def api_proposal_intelligence_history():
     return {"available": True, "records": read_history(STATE_DIR)}
 
 
+@app.get("/api/v1/evidence")
+def api_evidence():
+    """Read-only: the evidence bundle produced by pipeline.evidence_assembler.
+    Never runs the pipeline, never scores the proposal -- this endpoint only
+    surfaces what pipeline/evidence_assembler.py already wrote to disk."""
+    return read_all_state(STATE_DIR, REPO_ROOT)["evidence"]
+
+
+@app.get("/api/v1/evidence/coverage")
+def api_evidence_coverage():
+    evidence = read_all_state(STATE_DIR, REPO_ROOT)["evidence"]
+    if not evidence.get("available"):
+        return evidence
+    return {
+        "available": True,
+        "freshness": evidence.get("freshness"),
+        "result": evidence.get("result"),
+        "coverage_summary": evidence.get("coverage_summary"),
+        "criterion_evidence": [
+            {k: ce[k] for k in ("criterion_id", "coverage_ratio", "evidence_quality", "freshness", "result")}
+            for ce in evidence.get("criterion_evidence", [])
+        ],
+        "budget_readiness": evidence.get("budget_readiness"),
+        "partner_readiness": evidence.get("partner_readiness"),
+        "register_readiness": evidence.get("register_readiness"),
+        "technical_readiness": evidence.get("technical_readiness"),
+        "guardian_summary": evidence.get("guardian_summary"),
+    }
+
+
+@app.get("/api/v1/evidence/contradictions")
+def api_evidence_contradictions():
+    evidence = read_all_state(STATE_DIR, REPO_ROOT)["evidence"]
+    if not evidence.get("available"):
+        return evidence
+    return {"available": True, "contradictions": evidence.get("contradictions", []),
+            "cross_document_checks": evidence.get("cross_document_checks", [])}
+
+
 # Bumped whenever a static asset (dashboard.css / dashboard.js) changes,
 # so a browser tab left open across a deploy is forced to refetch instead
 # of silently rendering with stale cached CSS/JS.
-ASSET_VERSION = "2026-07-20-3"
+ASSET_VERSION = "2026-07-21-1"
 
 
 @app.get("/", response_class=HTMLResponse)

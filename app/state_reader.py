@@ -20,6 +20,7 @@ STATE_FILES = {
     "proposal_intelligence": "proposal_intelligence_state.json",
     "decisions": "decisions_state.json",
     "budget": "budget_state.json",
+    "evidence": "proposal_evidence_state.json",
 }
 
 

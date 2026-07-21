@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "proposal_evidence_state",
+  "type": "object",
+  "required": [
+    "schema_version", "evidence_model_version", "repo_commit", "run_timestamp",
+    "freshness", "result", "source_states", "criterion_evidence",
+    "cross_document_checks", "contradictions", "missing_evidence",
+    "guardian_summary", "partner_readiness", "budget_readiness",
+    "resource_readiness", "register_readiness", "technical_readiness",
+    "coverage_summary", "findings"
+  ],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "evidence_model_version": {"type": "string"},
+    "repo_commit": {"type": ["string", "null"]},
+    "run_timestamp": {"type": "string"},
+    "freshness": {"type": "string", "enum": ["FRESH", "STALE", "UNAVAILABLE"]},
+    "result": {"type": "string", "enum": ["OK", "REVIEW", "WARN", "FAIL", "CRITICAL"]},
+    "source_states": {
+      "type": "object",
+      "description": "Per-producer availability/freshness/result, as read from FORISEC_STATE_DIR. Never re-derives what a producer already computed."
+    },
+    "criterion_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "criterion_id", "required_evidence", "available_evidence",
+          "missing_evidence", "contradictions", "supporting_sources",
+          "coverage_ratio", "evidence_quality", "freshness", "result"
+        ],
+        "properties": {
+          "criterion_id": {"type": "string", "enum": ["E1", "E2", "I1", "I2I3", "IM1", "IM2IM3"]},
+          "required_evidence": {"type": "array"},
+          "available_evidence": {"type": "array"},
+          "missing_evidence": {"type": "array"},
+          "contradictions": {"type": "array"},
+          "supporting_sources": {"type": "array"},
+          "coverage_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+          "evidence_quality": {"type": "string", "enum": ["NONE", "WEAK", "PARTIAL", "SUFFICIENT", "STRONG"]},
+          "freshness": {"type": "string", "enum": ["FRESH", "STALE", "UNAVAILABLE"]},
+          "result": {"type": "string", "enum": ["OK", "REVIEW", "WARN", "FAIL", "CRITICAL"]}
+        }
+      }
+    },
+    "cross_document_checks": {"type": "array"},
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "criterion", "severity", "claim_source", "claim",
+                     "contradicting_source", "reason", "affected_files", "repo_commit"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]}
+        }
+      }
+    },
+    "missing_evidence": {"type": "array"},
+    "guardian_summary": {"type": "object"},
+    "partner_readiness": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "role", "wp_responsibility", "profile_status", "pic_status",
+                     "commitment_status", "personnel_status", "budget_status",
+                     "evidence_files", "missing_fields", "freshness", "result"]
+      }
+    },
+    "budget_readiness": {"type": "object"},
+    "resource_readiness": {"type": "object"},
+    "register_readiness": {"type": "object"},
+    "technical_readiness": {"type": "object"},
+    "coverage_summary": {"type": "object"},
+    "findings": {"type": "array"}
+  }
+}

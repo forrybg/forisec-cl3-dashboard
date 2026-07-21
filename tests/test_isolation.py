@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIRS = ["app", "agents"]
+SOURCE_DIRS = ["app", "agents", "pipeline"]
 
 # Per-file exceptions: a literal reference is allowed ONLY where it is
 # used purely as a defensive negative-check constant (e.g. "state dir
@@ -31,7 +31,7 @@ FORBIDDEN_SUBSTRINGS = [
 ]
 
 ALLOWED_TOP_LEVEL_IMPORTS = {
-    "app", "agents", "fastapi", "starlette", "jinja2", "jsonschema",
+    "app", "agents", "pipeline", "fastapi", "starlette", "jinja2", "jsonschema",
     "json", "os", "sys", "re", "subprocess", "tempfile", "pathlib",
     "datetime", "typing",
 }

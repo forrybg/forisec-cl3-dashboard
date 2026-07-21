@@ -302,6 +302,33 @@ def _fundability_label(total: float, has_critical: bool, promotion_status: str) 
     return "STRONG"
 
 
+EVENT_TYPES = ("REPOSITORY_CHANGE", "MODEL_RECALCULATION", "HUMAN_PROMOTION")
+
+
+def _classify_event_type(prev_record: dict | None, record: dict) -> str:
+    """
+    Timeline event classification (STEP 1 OF 2, evidence-pipeline pass).
+    Does NOT change the scoring formula or total_gain calculation --
+    purely descriptive metadata on top of the existing snapshot shape.
+
+    REPOSITORY_CHANGE    -- repo_commit differs from the previous snapshot
+                             (or this is the first-ever snapshot).
+    MODEL_RECALCULATION  -- same repo_commit, but scoring_model_version
+                             changed (e.g. a rubric bugfix, not a proposal edit).
+    HUMAN_PROMOTION      -- promotion_status newly became APPROVED (never
+                             set by this agent itself, only observed here).
+    """
+    if prev_record is None:
+        return "REPOSITORY_CHANGE"
+    if record.get("promotion_status") == "APPROVED" and prev_record.get("promotion_status") != "APPROVED":
+        return "HUMAN_PROMOTION"
+    if prev_record.get("repo_commit") != record.get("repo_commit"):
+        return "REPOSITORY_CHANGE"
+    if prev_record.get("scoring_model_version") != record.get("scoring_model_version"):
+        return "MODEL_RECALCULATION"
+    return "REPOSITORY_CHANGE"
+
+
 def _write_history_snapshot(state_dir: Path, repo_commit: str | None, snapshot: dict, force: bool = False) -> bool:
     history_dir = state_dir / "history"
     history_dir.mkdir(parents=True, exist_ok=True)
@@ -330,6 +357,13 @@ def _read_timeline(state_dir: Path) -> list[dict]:
         if data:
             records.append(data)
     records.sort(key=lambda r: r.get("timestamp", ""))
+    # Backfill event_type for snapshots written before this field existed --
+    # read-only classification, never rewrites the snapshot file on disk.
+    prev = None
+    for r in records:
+        if "event_type" not in r:
+            r["event_type"] = _classify_event_type(prev, r)
+        prev = r
     return records
 
 
@@ -397,6 +431,9 @@ def run(repo_root: Path, state_dir: Path, force_snapshot: bool = False) -> dict:
         findings.append({"severity": "high", "title": "Supervisor DEGRADED blocks canonical promotion",
                           "description": "See Agent 4 (project_supervisor) state for details.", "source": "supervisor_state.json"})
 
+    prior_timeline = _read_timeline(state_dir)
+    prev_record = prior_timeline[-1] if prior_timeline else None
+
     snapshot = {
         "timestamp": base["run_timestamp"],
         "repo_commit": repo_commit,
@@ -406,6 +443,7 @@ def run(repo_root: Path, state_dir: Path, force_snapshot: bool = False) -> dict:
         "critical_finding_count": sum(1 for f in guardian_findings if f.get("severity") == "critical"),
         "promotion_status": promotion_status,
     }
+    snapshot["event_type"] = _classify_event_type(prev_record, snapshot)
     _write_history_snapshot(state_dir, repo_commit, snapshot, force=force_snapshot)
 
     timeline = _read_timeline(state_dir)

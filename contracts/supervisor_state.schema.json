@@ -10,7 +10,18 @@
     "run_timestamp": {"type": "string"},
     "status": {"type": "string"},
     "overall_status": {"type": "string", "enum": ["CRITICAL", "DEGRADED", "REVIEW", "OK"]},
-    "state_files": {"type": "object"},
+    "state_files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {"type": "string", "enum": ["MISSING", "INVALID", "STALE", "OK"]},
+          "freshness": {"type": "string", "enum": ["FRESH", "STALE", "UNAVAILABLE"]},
+          "result": {"type": "string", "enum": ["OK", "REVIEW", "WARN", "FAIL", "CRITICAL"]}
+        }
+      }
+    },
     "findings": {"type": "array"}
   }
 }
