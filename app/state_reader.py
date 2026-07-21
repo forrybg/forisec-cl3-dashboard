@@ -67,6 +67,35 @@ def read_all_state(state_dir: Path, repo_root: Path) -> dict:
     return {key: read_state(state_dir, key, repo_root) for key in STATE_FILES}
 
 
+def _classify_event_type(prev_record: dict | None, record: dict) -> str:
+    """
+    Mirrors agents/proposal_intelligence.py::_classify_event_type exactly
+    (duplicated, not imported -- app/ must never import agents/, per
+    tests/test_isolation.py::test_dashboard_does_not_import_agents).
+
+    Needed here because this module's read_history() is a SEPARATE read
+    path from the one agents/proposal_intelligence.py uses internally to
+    build timeline_summary: most snapshot files on disk predate the
+    event_type field and were only ever backfilled in-memory by the
+    agent's own _read_timeline(), never persisted to the JSON files. Without
+    doing the same backfill here, the dashboard's live chart (fed by this
+    function via /api/v1/proposal-intelligence/history) sees almost no
+    REPOSITORY_CHANGE-tagged records even though timeline_summary (baked
+    into proposal_intelligence_state.json) correctly counts 18 of them --
+    that mismatch was the "18/1 repository changes but not enough for a
+    trend chart" bug.
+    """
+    if prev_record is None:
+        return "REPOSITORY_CHANGE"
+    if record.get("promotion_status") == "APPROVED" and prev_record.get("promotion_status") != "APPROVED":
+        return "HUMAN_PROMOTION"
+    if prev_record.get("repo_commit") != record.get("repo_commit"):
+        return "REPOSITORY_CHANGE"
+    if prev_record.get("scoring_model_version") != record.get("scoring_model_version"):
+        return "MODEL_RECALCULATION"
+    return "REPOSITORY_CHANGE"
+
+
 def read_history(state_dir: Path) -> list[dict]:
     """Read-only: compact evaluation-timeline snapshots written by Agent 5
     (agents/proposal_intelligence.py) under FORISEC_STATE_DIR/history/.
@@ -83,4 +112,11 @@ def read_history(state_dir: Path) -> list[dict]:
         except Exception:
             continue
     records.sort(key=lambda r: r.get("timestamp", ""))
+    # Backfill event_type for snapshots written before this field existed --
+    # read-only classification, never rewrites the snapshot file on disk.
+    prev = None
+    for r in records:
+        if "event_type" not in r:
+            r["event_type"] = _classify_event_type(prev, r)
+        prev = r
     return records
