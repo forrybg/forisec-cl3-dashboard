@@ -9,6 +9,9 @@
     "schema_version",
     "context_model_version",
     "project_id",
+    "project_short_name",
+    "project_display_name",
+    "context_namespace",
     "project_title",
     "topic_id",
     "repo_commit",
@@ -49,7 +52,19 @@
     },
     "project_id": {
       "type": "string",
-      "description": "Short project identifier, read verbatim from config/canonical_documents.json's 'project' field. Never invented."
+      "description": "FIXED project identifier constant, always exactly 'forisec-cl3-2026' (context/identity.py::PROJECT_ID). Never derived from config/canonical_documents.json's 'project' field, which is only a short display label and must never double as this unique identifier."
+    },
+    "project_short_name": {
+      "type": "string",
+      "description": "FIXED short display label constant, always exactly 'FORISEC' (context/identity.py::PROJECT_SHORT_NAME). Not a unique identifier on its own."
+    },
+    "project_display_name": {
+      "type": "string",
+      "description": "FIXED human-readable project name constant, always exactly 'FORISEC \u2014 HORIZON-CL3-2026-02-CS-ECCC-01' (context/identity.py::PROJECT_DISPLAY_NAME)."
+    },
+    "context_namespace": {
+      "type": "string",
+      "description": "FIXED context namespace constant, always exactly 'forisec_cl3_2026' (context/identity.py::CONTEXT_NAMESPACE). Any consumer (retrieval, generation marker, MCP tools) must reject a bundle/context.db whose project_id or context_namespace does not match these constants."
     },
     "project_title": {
       "type": "string"

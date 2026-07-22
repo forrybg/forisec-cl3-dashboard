@@ -28,6 +28,10 @@ ALLOWLIST = {
     # no file path -- verified by the AST import-scan test below.
     "context/index_builder.py": {"foritech-os"},
     "context/retrieval.py": {"foritech-os"},
+    # Identity-lock module docstring explicitly names sibling systems
+    # (foritech-os, foritech_os) it must never be confused with, purely
+    # as documentation -- no import, no file path, no fallback default.
+    "context/identity.py": {"foritech-os", "foritech_os"},
 }
 
 FORBIDDEN_SUBSTRINGS = [

@@ -35,6 +35,7 @@ from pathlib import Path
 import jsonschema
 
 from agents.common import atomic_write_json, get_repo_commit, read_json_or_none
+from context.identity import CONTEXT_NAMESPACE, PROJECT_ID, identity_matches
 
 MARKER_FILENAME = "context_generation_complete.json"
 
@@ -58,6 +59,14 @@ def validate(repo_root: Path, state_dir: Path) -> dict:
             reasons.append(f"Could not load contract schema: {e}")
             bundle = None
 
+    if bundle is not None and not identity_matches(bundle.get("project_id"), bundle.get("context_namespace")):
+        reasons.append(
+            "project_context_state.json project_id/context_namespace does not match this "
+            f"project (expected project_id={PROJECT_ID!r}, context_namespace={CONTEXT_NAMESPACE!r}, "
+            f"found project_id={bundle.get('project_id')!r}, context_namespace={bundle.get('context_namespace')!r})."
+        )
+        bundle = None
+
     db_path = state_dir / "context" / "context.db"
     db_meta = None
     if not db_path.exists():
@@ -67,7 +76,8 @@ def validate(repo_root: Path, state_dir: Path) -> dict:
         try:
             conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
             row = conn.execute(
-                "SELECT proposal_repo_commit, service_commit, generation_id, source_count, chunk_count FROM meta"
+                "SELECT proposal_repo_commit, service_commit, generation_id, source_count, "
+                "chunk_count, project_id, context_namespace FROM meta"
             ).fetchone()
             conn.close()
             if row is None:
@@ -76,7 +86,15 @@ def validate(repo_root: Path, state_dir: Path) -> dict:
                 db_meta = {
                     "proposal_repo_commit": row[0], "service_commit": row[1],
                     "generation_id": row[2], "source_count": row[3], "chunk_count": row[4],
+                    "project_id": row[5], "context_namespace": row[6],
                 }
+                if not identity_matches(db_meta["project_id"], db_meta["context_namespace"]):
+                    reasons.append(
+                        "context.db project_id/context_namespace does not match this project "
+                        f"(expected project_id={PROJECT_ID!r}, context_namespace={CONTEXT_NAMESPACE!r}, "
+                        f"found project_id={db_meta['project_id']!r}, context_namespace={db_meta['context_namespace']!r})."
+                    )
+                    db_meta = None
         except Exception as e:
             reasons.append(f"context.db could not be read: {e}")
 

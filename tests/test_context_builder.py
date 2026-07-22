@@ -5,6 +5,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
+from context import identity
 from pipeline import context_builder as cb
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -228,7 +229,15 @@ def test_no_guesses_when_manifest_missing_project_fields(tmp_path, state_dir):
     subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo)
 
     result = cb.run(repo, state_dir, service_repo_root=repo)
-    assert result["project_id"] == "UNKNOWN"
+    # project_id/project_short_name/project_display_name/context_namespace are
+    # FIXED constants (context/identity.py) -- never guessed from the
+    # manifest, and never fall back to "UNKNOWN" even when the manifest is
+    # missing these fields entirely. Only topic_id (which has no fixed
+    # constant) still falls back to "UNKNOWN".
+    assert result["project_id"] == identity.PROJECT_ID
+    assert result["project_short_name"] == identity.PROJECT_SHORT_NAME
+    assert result["project_display_name"] == identity.PROJECT_DISPLAY_NAME
+    assert result["context_namespace"] == identity.CONTEXT_NAMESPACE
     assert result["topic_id"] == "UNKNOWN"
 
 

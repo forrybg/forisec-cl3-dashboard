@@ -67,6 +67,7 @@ from pathlib import Path
 
 from agents.common import atomic_write_json, read_json_or_none
 from agents.docs_controller import load_manifest
+from context.identity import CONTEXT_NAMESPACE, PROJECT_DISPLAY_NAME, PROJECT_ID, PROJECT_SHORT_NAME
 
 STATE_FILENAME = "project_context_state.json"
 SCHEMA_VERSION = "1.0"
@@ -641,7 +642,14 @@ def run(repo_root: Path, state_dir: Path, service_repo_root: Path | None = None)
     bundle = {
         "schema_version": SCHEMA_VERSION,
         "context_model_version": CONTEXT_MODEL_VERSION,
-        "project_id": manifest.get("project") or "UNKNOWN",
+        # Identity is a FIXED constant (context/identity.py), never derived
+        # from config/canonical_documents.json's "project" field -- that
+        # field is only a short display label ("FORISEC") and must never
+        # double as the unique project_id/context_namespace.
+        "project_id": PROJECT_ID,
+        "project_short_name": PROJECT_SHORT_NAME,
+        "project_display_name": PROJECT_DISPLAY_NAME,
+        "context_namespace": CONTEXT_NAMESPACE,
         "project_title": manifest.get("project") or "UNKNOWN",
         "topic_id": manifest.get("topic_id") or "UNKNOWN",
         "repo_commit": live_repo_commit,

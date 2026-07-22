@@ -12,6 +12,7 @@ import pytest
 
 from agents.common import atomic_write_json, get_repo_commit
 from context import generation_marker as gm
+from context import identity
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = PROJECT_ROOT / "contracts" / "project_context_state.schema.json"
@@ -56,6 +57,10 @@ def _valid_bootstrap(repo_commit: str) -> dict:
     bundle["repo_commit"] = repo_commit
     bundle["service_commit"] = "abc1234"
     bundle["freshness"] = "FRESH"
+    bundle["project_id"] = identity.PROJECT_ID
+    bundle["project_short_name"] = identity.PROJECT_SHORT_NAME
+    bundle["project_display_name"] = identity.PROJECT_DISPLAY_NAME
+    bundle["context_namespace"] = identity.CONTEXT_NAMESPACE
     bundle["schema_version"] = properties.get("schema_version", {}).get("const", "1.0")
     bundle["context_model_version"] = "2.0"
     bundle["generation_id"] = "11111111-1111-1111-1111-111111111111"
@@ -65,7 +70,10 @@ def _valid_bootstrap(repo_commit: str) -> dict:
 
 
 def _write_context_db(state_dir: Path, repo_commit: str, service_commit: str = "abc1234",
-                       generation_id: str = "22222222-2222-2222-2222-222222222222") -> Path:
+                       generation_id: str = "22222222-2222-2222-2222-222222222222",
+                       project_id: str = None, context_namespace: str = None) -> Path:
+    project_id = identity.PROJECT_ID if project_id is None else project_id
+    context_namespace = identity.CONTEXT_NAMESPACE if context_namespace is None else context_namespace
     context_dir = state_dir / "context"
     context_dir.mkdir(parents=True, exist_ok=True)
     db_path = context_dir / "context.db"
@@ -73,14 +81,17 @@ def _write_context_db(state_dir: Path, repo_commit: str, service_commit: str = "
     conn.execute("""
         CREATE TABLE meta (
             schema_version TEXT NOT NULL, index_model_version TEXT NOT NULL,
-            project_id TEXT NOT NULL, proposal_repo_commit TEXT, service_commit TEXT,
+            project_id TEXT NOT NULL, project_short_name TEXT NOT NULL,
+            project_display_name TEXT NOT NULL, context_namespace TEXT NOT NULL,
+            proposal_repo_commit TEXT, service_commit TEXT,
             generated_at TEXT NOT NULL, generation_id TEXT NOT NULL,
             source_count INTEGER NOT NULL, chunk_count INTEGER NOT NULL
         )
     """)
     conn.execute(
-        "INSERT INTO meta VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("1.0", "1.0-lexical", "forisec-cl3", repo_commit, service_commit,
+        "INSERT INTO meta VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ("1.0", "1.0-lexical", project_id, identity.PROJECT_SHORT_NAME,
+         identity.PROJECT_DISPLAY_NAME, context_namespace, repo_commit, service_commit,
          "2026-07-21T00:00:00+00:00", generation_id, 1, 1),
     )
     conn.commit()
@@ -180,6 +191,36 @@ def test_failed_generation_leaves_old_marker_readable(fake_repo, state_dir):
     on_disk = json.loads(marker_path.read_text())
     assert on_disk["ok"] is False
     assert on_disk["reasons"]
+
+
+def test_rejects_bootstrap_with_foreign_project_id(fake_repo, state_dir):
+    """A bootstrap bundle whose project_id/context_namespace belong to a
+    different project (e.g. accidentally pointed at foritech-os) must
+    never be accepted, even if repo_commit otherwise lines up."""
+    commit = get_repo_commit(fake_repo)
+    foreign = _valid_bootstrap(commit)
+    foreign["project_id"] = "foritech-os"
+    foreign["context_namespace"] = "foritech_os"
+    atomic_write_json(state_dir / "project_context_state.json", foreign)
+    _write_context_db(state_dir, commit)
+
+    result = gm.validate(fake_repo, state_dir)
+    assert result["ok"] is False
+    assert any("project_id/context_namespace does not match" in r for r in result["reasons"])
+
+
+def test_rejects_context_db_with_foreign_project_id(fake_repo, state_dir):
+    """A context.db built (or copied) under a different project_id/
+    context_namespace must never be accepted as this project's
+    generation, even if its repo_commit matches."""
+    commit = get_repo_commit(fake_repo)
+    atomic_write_json(state_dir / "project_context_state.json", _valid_bootstrap(commit))
+    _write_context_db(state_dir, commit, project_id="foritech-secure-system",
+                       context_namespace="foritech_secure_system")
+
+    result = gm.validate(fake_repo, state_dir)
+    assert result["ok"] is False
+    assert any("project_id/context_namespace does not match" in r for r in result["reasons"])
 
 
 def test_main_exits_nonzero_on_invalid_generation(fake_repo, state_dir, monkeypatch, capsys):

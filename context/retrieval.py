@@ -30,6 +30,7 @@ from pathlib import Path
 from context.index_builder import (
     DB_FILENAME, EMBEDDINGS_DIM, _fetch_embeddings, unpack_embedding,
 )
+from context.identity import CONTEXT_NAMESPACE, PROJECT_ID, identity_matches
 
 SECTION_ALLOWLIST = {
     "architecture": "architecture_summary",
@@ -96,6 +97,11 @@ def _open_db_readonly(db_path: Path) -> sqlite3.Connection:
 
 
 def _read_db_meta(state_dir: Path) -> dict | None:
+    """Returns the raw meta row (including project_id/context_namespace,
+    UNVALIDATED) or None if the db is missing/unreadable/empty. Identity
+    validation is the caller's job (_envelope) -- kept separate so a
+    caller can distinguish "no db" from "db present but foreign
+    project_id/context_namespace" if it ever needs to."""
     db_path = _context_db_path(state_dir)
     if not db_path.exists():
         return None
@@ -105,7 +111,8 @@ def _read_db_meta(state_dir: Path) -> dict | None:
         return None
     try:
         row = conn.execute(
-            "SELECT schema_version, index_model_version, project_id, proposal_repo_commit, "
+            "SELECT schema_version, index_model_version, project_id, project_short_name, "
+            "project_display_name, context_namespace, proposal_repo_commit, "
             "service_commit, generated_at, generation_id, source_count, chunk_count FROM meta"
         ).fetchone()
     except sqlite3.DatabaseError:
@@ -114,27 +121,68 @@ def _read_db_meta(state_dir: Path) -> dict | None:
     conn.close()
     if row is None:
         return None
-    keys = ["schema_version", "index_model_version", "project_id", "proposal_repo_commit",
+    keys = ["schema_version", "index_model_version", "project_id", "project_short_name",
+            "project_display_name", "context_namespace", "proposal_repo_commit",
             "service_commit", "generated_at", "generation_id", "source_count", "chunk_count"]
     return dict(zip(keys, row))
 
 
+def _valid_db_meta(state_dir: Path) -> dict | None:
+    """Like _read_db_meta, but returns None (not just an unchecked row)
+    unless the stored project_id/context_namespace both match this
+    project's fixed constants. Callers that are about to run a REAL
+    query against context.db (search/get_source/get_repo_map/get_section's
+    snippet lookup) must gate on this FIRST -- checking identity only
+    inside _envelope() (which runs after the query) would let a foreign
+    or corrupted generation's actual rows leak into the response
+    alongside an "available: false" flag, which is not an acceptable
+    rejection."""
+    meta = _read_db_meta(state_dir)
+    if meta is None:
+        return None
+    if not identity_matches(meta.get("project_id"), meta.get("context_namespace")):
+        return None
+    return meta
+
+
 def _envelope(state_dir: Path, repo_root: Path, extra: dict) -> dict:
-    """Common envelope fields required on every LEVEL 2/3 response."""
+    """Common envelope fields required on every LEVEL 2/3 response.
+
+    Every response carries this project's fixed project_id/
+    context_namespace (context/identity.py), regardless of what (if
+    anything) is on disk. If context.db IS present but its own stored
+    project_id/context_namespace do not both match those constants, the
+    database is treated exactly like "not available" -- it is a foreign
+    or corrupted generation and must never be surfaced as if it were
+    this project's data (see context/identity.py's identity_matches())."""
     meta = _read_db_meta(state_dir)
     live_commit = _live_repo_commit(repo_root)
 
+    identity_mismatch = False
+    if meta is not None and not identity_matches(meta.get("project_id"), meta.get("context_namespace")):
+        identity_mismatch = True
+        meta = None
+
     if meta is None:
+        reason = (
+            "context.db project_id/context_namespace does not match this project "
+            f"(expected project_id={PROJECT_ID!r}, context_namespace={CONTEXT_NAMESPACE!r}) "
+            "-- rejected as a foreign/untrusted generation."
+            if identity_mismatch else
+            "context.db is not available."
+        )
         base = {
+            "project_id": PROJECT_ID, "context_namespace": CONTEXT_NAMESPACE,
             "available": False, "freshness": "UNAVAILABLE",
             "repo_commit": None, "service_commit": None, "generation_id": None,
-            "sources": [], "reason": "context.db is not available.",
+            "sources": [], "reason": reason,
         }
     else:
         freshness = "FRESH"
         if not live_commit or live_commit != meta["proposal_repo_commit"]:
             freshness = "STALE"
         base = {
+            "project_id": meta["project_id"], "context_namespace": meta["context_namespace"],
             "available": True, "freshness": freshness,
             "repo_commit": meta["proposal_repo_commit"], "service_commit": meta["service_commit"],
             "generation_id": meta["generation_id"], "sources": [],
@@ -154,6 +202,18 @@ def get_section(state_dir: Path, repo_root: Path, section: str, bootstrap: dict)
 
     if not bootstrap.get("available"):
         return _envelope(state_dir, repo_root, {"section": section, "summary": None})
+
+    if not identity_matches(bootstrap.get("project_id"), bootstrap.get("context_namespace")):
+        # The bootstrap bundle itself belongs to a different project/
+        # namespace (or is missing these fields entirely) -- never
+        # surface its summary content as if it were this project's data.
+        return _envelope(state_dir, repo_root, {
+            "section": section, "summary": None,
+            "reason": (
+                "bootstrap project_id/context_namespace does not match this project "
+                f"(expected project_id={PROJECT_ID!r}, context_namespace={CONTEXT_NAMESPACE!r})."
+            ),
+        })
 
     if section == "decisions":
         summary = {
@@ -179,7 +239,7 @@ def get_section(state_dir: Path, repo_root: Path, section: str, bootstrap: dict)
 
     snippets = []
     db_path = _context_db_path(state_dir)
-    if db_path.exists() and source_paths:
+    if db_path.exists() and source_paths and _valid_db_meta(state_dir) is not None:
         try:
             conn = _open_db_readonly(db_path)
             try:
@@ -245,7 +305,7 @@ def search(state_dir: Path, repo_root: Path, query: str, top_k: int = TOP_K_DEFA
             raise RetrievalError("UNKNOWN_SECTION", f"'{section}' is not in the section allowlist.")
 
     db_path = _context_db_path(state_dir)
-    if not db_path.exists():
+    if not db_path.exists() or _valid_db_meta(state_dir) is None:
         return _envelope(state_dir, repo_root, {"query": query, "results": [], "semantic_used": False})
 
     try:
@@ -334,7 +394,7 @@ def get_source(state_dir: Path, repo_root: Path, path: str) -> dict:
         raise RetrievalError("PATH_TRAVERSAL_REJECTED", "Path traversal segments are never accepted.")
 
     db_path = _context_db_path(state_dir)
-    if not db_path.exists():
+    if not db_path.exists() or _valid_db_meta(state_dir) is None:
         return _envelope(state_dir, repo_root, {"path": path, "chunks": [], "truncated": False})
 
     try:
@@ -417,7 +477,7 @@ def get_repo_map(state_dir: Path, repo_root: Path) -> dict:
     _scan_repo_map(). Exists so a brand-new chat can see "what file does
     what" in one query instead of grepping the whole tree."""
     db_path = _context_db_path(state_dir)
-    if not db_path.exists():
+    if not db_path.exists() or _valid_db_meta(state_dir) is None:
         return _envelope(state_dir, repo_root, {"files": []})
 
     try:

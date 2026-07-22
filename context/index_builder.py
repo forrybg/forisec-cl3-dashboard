@@ -63,6 +63,9 @@ from pathlib import Path
 
 from agents.common import safe_repo_path, UnsafeRepositoryPathError, get_repo_commit
 from agents.docs_controller import STATUS_MARKER_RE, load_manifest
+from context.identity import (
+    PROJECT_ID, PROJECT_SHORT_NAME, PROJECT_DISPLAY_NAME, CONTEXT_NAMESPACE,
+)
 
 DB_FILENAME = "context.db"
 SCHEMA_VERSION = "1.0"
@@ -315,6 +318,9 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             schema_version TEXT NOT NULL,
             index_model_version TEXT NOT NULL,
             project_id TEXT NOT NULL,
+            project_short_name TEXT NOT NULL,
+            project_display_name TEXT NOT NULL,
+            context_namespace TEXT NOT NULL,
             proposal_repo_commit TEXT,
             service_commit TEXT,
             generated_at TEXT NOT NULL,
@@ -325,6 +331,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE sources (
             source_path TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            context_namespace TEXT NOT NULL,
             source_hash TEXT NOT NULL,
             source_type TEXT NOT NULL,
             canonical_status TEXT,
@@ -337,6 +345,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE chunks (
             chunk_id TEXT UNIQUE NOT NULL,
             source_path TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            context_namespace TEXT NOT NULL,
             heading TEXT,
             section_key TEXT,
             chunk_index INTEGER NOT NULL,
@@ -357,6 +367,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE repo_map (
             path TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            context_namespace TEXT NOT NULL,
             kind TEXT NOT NULL,
             summary TEXT,
             top_level_functions TEXT NOT NULL,
@@ -391,7 +403,12 @@ def build(repo_root: Path, state_dir: Path, service_repo_root: Path | None = Non
     except Exception as e:
         raise IndexBuildError(f"Cannot load config/canonical_documents.json: {e}") from e
 
-    project_id = manifest.get("project") or "UNKNOWN"
+    # Identity is a FIXED constant, never derived from the manifest --
+    # config/canonical_documents.json's "project" field is only a short
+    # display label ("FORISEC") and must never double as the unique
+    # project_id (see context/identity.py's module docstring).
+    project_id = PROJECT_ID
+    manifest_project_label = manifest.get("project") or "UNKNOWN"  # informational only
     documents = manifest.get("documents", [])
 
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -437,16 +454,17 @@ def build(repo_root: Path, state_dir: Path, service_repo_root: Path | None = Non
             superseded = 1 if (canonical_status or "").upper() == "SUPERSEDED" else 0
 
             source_rows.append((
-                rel_path, source_hash, suffix.lstrip("."), canonical_status,
-                proposal_repo_commit, generated_at, _token_estimate(text), superseded,
+                rel_path, PROJECT_ID, CONTEXT_NAMESPACE, source_hash, suffix.lstrip("."),
+                canonical_status, proposal_repo_commit, generated_at, _token_estimate(text), superseded,
             ))
 
             for heading, section_key, chunk_index, chunk_text in _chunk_document(text):
                 chunk_rows.append((heading, section_key, chunk_index, chunk_text, rel_path))
 
         conn.executemany(
-            "INSERT INTO sources (source_path, source_hash, source_type, canonical_status, "
-            "repo_commit, indexed_at, token_estimate, superseded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO sources (source_path, project_id, context_namespace, source_hash, "
+            "source_type, canonical_status, repo_commit, indexed_at, token_estimate, superseded) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             source_rows,
         )
 
@@ -473,11 +491,11 @@ def build(repo_root: Path, state_dir: Path, service_repo_root: Path | None = Non
             if i in embeddings_by_index:
                 embedding_blob = _pack_embedding(embeddings_by_index[i])
             cur.execute(
-                "INSERT INTO chunks (chunk_id, source_path, heading, section_key, chunk_index, "
-                "text, text_hash, token_estimate, repo_commit, embedding) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (chunk_id, source_path, heading, section_key, chunk_index, chunk_text,
-                 text_hash, _token_estimate(chunk_text), proposal_repo_commit, embedding_blob),
+                "INSERT INTO chunks (chunk_id, source_path, project_id, context_namespace, heading, "
+                "section_key, chunk_index, text, text_hash, token_estimate, repo_commit, embedding) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (chunk_id, source_path, PROJECT_ID, CONTEXT_NAMESPACE, heading, section_key, chunk_index,
+                 chunk_text, text_hash, _token_estimate(chunk_text), proposal_repo_commit, embedding_blob),
             )
             rowid = cur.lastrowid
             cur.execute(
@@ -489,9 +507,11 @@ def build(repo_root: Path, state_dir: Path, service_repo_root: Path | None = Non
 
         conn.execute(
             "INSERT INTO meta (schema_version, index_model_version, project_id, "
+            "project_short_name, project_display_name, context_namespace, "
             "proposal_repo_commit, service_commit, generated_at, generation_id, "
-            "source_count, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (SCHEMA_VERSION, index_model_version, project_id, proposal_repo_commit,
+            "source_count, chunk_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (SCHEMA_VERSION, index_model_version, project_id, PROJECT_SHORT_NAME,
+             PROJECT_DISPLAY_NAME, CONTEXT_NAMESPACE, proposal_repo_commit,
              service_commit, generated_at, generation_id, len(source_rows), len(chunk_rows)),
         )
 
@@ -500,11 +520,11 @@ def build(repo_root: Path, state_dir: Path, service_repo_root: Path | None = Non
         # as everything else in this atomic build.
         for repo_map_row in _scan_repo_map(service_repo_root):
             conn.execute(
-                "INSERT INTO repo_map (path, kind, summary, top_level_functions, "
-                "top_level_classes, line_count, service_commit, generated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (repo_map_row["path"], repo_map_row["kind"], repo_map_row["summary"],
-                 json.dumps(repo_map_row["top_level_functions"]),
+                "INSERT INTO repo_map (path, project_id, context_namespace, kind, summary, "
+                "top_level_functions, top_level_classes, line_count, service_commit, generated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (repo_map_row["path"], PROJECT_ID, CONTEXT_NAMESPACE, repo_map_row["kind"],
+                 repo_map_row["summary"], json.dumps(repo_map_row["top_level_functions"]),
                  json.dumps(repo_map_row["top_level_classes"]),
                  repo_map_row["line_count"], service_commit, generated_at),
             )
